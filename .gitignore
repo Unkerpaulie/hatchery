@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments (server-local only; the dev venv lives outside the repo)
+.venv/
+venv/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Local SQLite dev DB
+db.sqlite3
+db.sqlite3-journal
+
+# Collected static (populated by collectstatic in production)
+staticfiles/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

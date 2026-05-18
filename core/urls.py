@@ -5,7 +5,7 @@ Composes auth endpoints, the dashboard, and the domain app routes
 """
 
 from django.contrib.auth import views as auth_views
-from django.urls import include, path
+from django.urls import path
 
 from . import views
 
@@ -19,6 +19,4 @@ urlpatterns = [
         name="login",
     ),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
-    path("inventory/", include("inventory.urls")),
-    path("sales/", include("sales.urls")),
 ]

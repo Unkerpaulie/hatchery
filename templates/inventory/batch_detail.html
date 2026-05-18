@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Batch #{{ batch.pk }} · Hatchery{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'vendor/datatables/dataTables.bootstrap4.min.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+{# ── Page heading ─────────────────────────────────────────────────────────── #}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+        Batch #{{ batch.pk }}
+        {% if batch.status == 'ready' %}<span class="badge badge-secondary ml-2">Ready</span>
+        {% elif batch.status == 'incubating' %}<span class="badge badge-warning ml-2">Incubating</span>
+        {% else %}<span class="badge badge-success ml-2">Done</span>{% endif %}
+    </h1>
+    <a href="{% url 'inventory:batch_list' %}" class="btn btn-sm btn-secondary shadow-sm">
+        <i class="fas fa-arrow-left fa-sm"></i> All Batches
+    </a>
+</div>
+
+{# ── Batch info card ──────────────────────────────────────────────────────── #}
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Batch Details</h6></div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Supplier</dt>
+                    <dd class="col-sm-7">{{ batch.supplier|default:"—" }}</dd>
+                    <dt class="col-sm-5">Purchase Date</dt>
+                    <dd class="col-sm-7">{{ batch.purchase_date }}</dd>
+                    <dt class="col-sm-5">Egg Quantity</dt>
+                    <dd class="col-sm-7">{{ batch.quantity }}</dd>
+                    <dt class="col-sm-5">Total Cost</dt>
+                    <dd class="col-sm-7">${{ batch.total_cost|floatformat:2 }}</dd>
+                    {% if batch.incubation_start_date %}
+                    <dt class="col-sm-5">Incubation Started</dt>
+                    <dd class="col-sm-7">{{ batch.incubation_start_date }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    {# ── READY: stat + action ─────────────────────────────────────────────── #}
+    {% if batch.status == 'ready' %}
+    <div class="col-lg-6">
+        <div class="card shadow mb-4 border-left-secondary">
+            <div class="card-body text-center py-4">
+                <p class="text-gray-600 mb-3">This batch has not started incubation yet.</p>
+                <button class="btn btn-primary btn-lg" data-toggle="modal" data-target="#beginIncubationModal">
+                    <i class="fas fa-fire-alt mr-1"></i> Begin Incubation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {# ── INCUBATING ───────────────────────────────────────────────────────── #}
+    {% elif batch.status == 'incubating' %}
+    <div class="col-lg-6">
+        <div class="card shadow mb-4 border-left-warning">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="h4 font-weight-bold text-warning">{{ batch.hatched_count }}</div>
+                        <div class="small text-gray-600">Hatched</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 font-weight-bold text-gray-800">{{ eggs_remaining }}</div>
+                        <div class="small text-gray-600">Remaining</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 font-weight-bold text-success">{{ batch.chicks_available }}</div>
+                        <div class="small text-gray-600">Available</div>
+                    </div>
+                </div>
+                <hr class="my-3">
+                <div class="text-center">
+                    <button class="btn btn-success" data-toggle="modal" data-target="#completeModal">
+                        <i class="fas fa-check-circle mr-1"></i> Mark Batch Complete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{# ── Remaining eggs counter (simple math in template) ─────────────────────── #}
+{% if batch.status == 'incubating' %}
+
+{# ── Add hatch record ─────────────────────────────────────────────────────── #}
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Add Hatch Record</h6>
+    </div>
+    <div class="card-body">
+        <form method="post" action="{% url 'inventory:hatch_create' batch.pk %}" novalidate>
+            {% csrf_token %}
+            <div class="form-row align-items-end">
+                <div class="form-group col-md-4 mb-0">
+                    <label class="small font-weight-bold">Date</label>
+                    {{ hatch_form.date }}
+                </div>
+                <div class="form-group col-md-4 mb-0">
+                    <label class="small font-weight-bold">Quantity Hatched</label>
+                    {{ hatch_form.quantity }}
+                </div>
+                <div class="form-group col-md-4 mb-0">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-plus mr-1"></i> Add Record
+                    </button>
+                </div>
+            </div>
+            {% if hatch_form.non_field_errors %}
+                <div class="alert alert-danger mt-2 mb-0">{{ hatch_form.non_field_errors }}</div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{# ── Hatch records table ──────────────────────────────────────────────────── #}
+{% if batch.hatches.all %}
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Hatch Records</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm" id="hatchTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th class="text-right">Quantity</th>
+                        {% if batch.status == 'incubating' %}<th class="text-center" style="width:100px;">Actions</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                {% for hatch in batch.hatches.all %}
+                    <tr>
+                        <td>{{ hatch.date }}</td>
+                        <td class="text-right">{{ hatch.quantity }}</td>
+                        {% if batch.status == 'incubating' %}
+                        <td class="text-center">
+                            <a href="{% url 'inventory:hatch_update' hatch.pk %}"
+                               class="btn btn-xs btn-info" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button class="btn btn-xs btn-danger" type="button"
+                                    data-toggle="modal" data-target="#deleteHatchModal"
+                                    data-url="{% url 'inventory:hatch_delete' hatch.pk %}"
+                                    data-qty="{{ hatch.quantity }}" data-date="{{ hatch.date }}"
+                                    title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── DONE: stats + sales summary ─────────────────────────────────────────── #}
+{% if batch.status == 'done' %}
+<div class="row">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body"><div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Success Rate</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ success_rate_pct }}%</div>
+                </div><div class="col-auto"><i class="fas fa-percentage fa-2x text-gray-300"></i></div>
+            </div></div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body"><div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Revenue</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ batch.revenue|floatformat:2 }}</div>
+                </div><div class="col-auto"><i class="fas fa-dollar-sign fa-2x text-gray-300"></i></div>
+            </div></div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body"><div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Profit</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ batch.profit|floatformat:2 }}</div>
+                </div><div class="col-auto"><i class="fas fa-chart-line fa-2x text-gray-300"></i></div>
+            </div></div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body"><div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Eggs Failed</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ batch.failed_count }}</div>
+                </div><div class="col-auto"><i class="fas fa-times-circle fa-2x text-gray-300"></i></div>
+            </div></div>
+        </div>
+    </div>
+</div>
+
+{# Available chicks #}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle mr-1"></i>
+    <strong>{{ batch.chicks_available }}</strong> chick{{ batch.chicks_available|pluralize }} currently available for sale from this batch.
+</div>
+
+{# Sales tied to this batch #}
+{% if sale_lines %}
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Sales from this Batch</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm" id="salesTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th class="text-right">Qty</th>
+                        <th class="text-right">Unit Price</th>
+                        <th class="text-right">Line Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for line in sale_lines %}
+                    <tr>
+                        <td>{{ line.sale.date }}</td>
+                        <td>{{ line.sale.customer }}</td>
+                        <td class="text-right">{{ line.quantity }}</td>
+                        <td class="text-right">${{ line.unit_price|floatformat:2 }}</td>
+                        <td class="text-right">${{ line.line_total|floatformat:2 }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endif %}{# /done #}
+
+{# ── Modals ───────────────────────────────────────────────────────────────── #}
+
+{% if batch.status == 'ready' %}
+<div class="modal fade" id="beginIncubationModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Begin Incubation</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                Confirm that incubation for Batch #{{ batch.pk }} is starting today
+                ({{ today }}). The status will be set to <strong>Incubating</strong>.
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                <form method="post" action="{% url 'inventory:batch_begin_incubation' batch.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-primary" type="submit">Confirm</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if batch.status == 'incubating' %}
+<div class="modal fade" id="completeModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Mark Batch Complete</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                {% if batch.failed_count == 0 %}
+                    <p><i class="fas fa-check-circle text-success mr-1"></i>
+                    All <strong>{{ batch.quantity }}</strong> eggs were successfully hatched.</p>
+                {% else %}
+                    <p><i class="fas fa-exclamation-triangle text-warning mr-1"></i>
+                    <strong>{{ batch.failed_count }}</strong> egg{{ batch.failed_count|pluralize }} failed to hatch
+                    ({{ batch.hatched_count }} of {{ batch.quantity }} successful).</p>
+                {% endif %}
+                <p class="mb-0">Confirm to mark this batch as <strong>Done</strong>.
+                Hatch records will be locked.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                <form method="post" action="{% url 'inventory:batch_complete' batch.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-success" type="submit">Confirm</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteHatchModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Hatch Record</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                Delete the hatch record of <strong id="dhQty"></strong> chicks on <strong id="dhDate"></strong>?
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                <form id="deleteHatchForm" method="post">
+                    {% csrf_token %}
+                    <button class="btn btn-danger" type="submit">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'vendor/datatables/dataTables.bootstrap4.min.js' %}"></script>
+<script>
+    {% if batch.hatches.all %} $('#hatchTable').DataTable({ paging: false, searching: false, info: false, order: [[0,'desc']] }); {% endif %}
+    {% if sale_lines %}       $('#salesTable').DataTable({ paging: false, searching: false, info: false }); {% endif %}
+    $('#deleteHatchModal').on('show.bs.modal', function(e) {
+        var btn = $(e.relatedTarget);
+        $(this).find('#deleteHatchForm').attr('action', btn.data('url'));
+        $(this).find('#dhQty').text(btn.data('qty'));
+        $(this).find('#dhDate').text(btn.data('date'));
+    });
+</script>
+{% endblock %}

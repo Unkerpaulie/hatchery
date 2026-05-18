@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Batches · Hatchery{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'vendor/datatables/dataTables.bootstrap4.min.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Batches</h1>
+    <a href="{% url 'inventory:batch_create' %}" class="btn btn-sm btn-primary shadow-sm">
+        <i class="fas fa-plus fa-sm text-white-50"></i> New Batch
+    </a>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" id="batchesTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Status</th>
+                        <th>Supplier</th>
+                        <th>Purchased</th>
+                        <th class="text-right">Eggs</th>
+                        <th class="text-right">Hatched</th>
+                        <th class="text-right">Available</th>
+                        <th class="text-right">Cost</th>
+                        <th class="text-center" style="width:80px;">Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for batch in batches %}
+                    <tr>
+                        <td>{{ batch.pk }}</td>
+                        <td>
+                            {% if batch.status == 'ready' %}
+                                <span class="badge badge-secondary">Ready</span>
+                            {% elif batch.status == 'incubating' %}
+                                <span class="badge badge-warning">Incubating</span>
+                            {% else %}
+                                <span class="badge badge-success">Done</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ batch.supplier|default:"—" }}</td>
+                        <td>{{ batch.purchase_date }}</td>
+                        <td class="text-right">{{ batch.quantity }}</td>
+                        <td class="text-right">{{ batch.hatched_count }}</td>
+                        <td class="text-right">{{ batch.chicks_available }}</td>
+                        <td class="text-right">${{ batch.total_cost|floatformat:2 }}</td>
+                        <td class="text-center">
+                            <a href="{% url 'inventory:batch_detail' batch.pk %}"
+                               class="btn btn-sm btn-primary" title="View">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="9" class="text-center text-muted">No batches yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'vendor/datatables/dataTables.bootstrap4.min.js' %}"></script>
+<script>
+    $('#batchesTable').DataTable({
+        order: [[0, 'desc']],
+        columnDefs: [{ orderable: false, targets: 8 }]
+    });
+</script>
+{% endblock %}

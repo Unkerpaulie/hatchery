@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Suppliers · Hatchery{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Suppliers</h1>
+    <a href="{% url 'inventory:supplier_create' %}" class="btn btn-sm btn-primary shadow-sm">
+        <i class="fas fa-plus fa-sm text-white-50"></i> Add Supplier
+    </a>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" id="suppliersTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>Business Name</th>
+                        <th>Contact Person</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th class="text-center" style="width:120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for supplier in suppliers %}
+                    <tr>
+                        <td>{{ supplier.business_name }}</td>
+                        <td>{{ supplier.contact_name|default:"—" }}</td>
+                        <td>{{ supplier.phone|default:"—" }}</td>
+                        <td>{{ supplier.email|default:"—" }}</td>
+                        <td class="text-center">
+                            <a href="{% url 'inventory:supplier_update' supplier.pk %}"
+                               class="btn btn-sm btn-info" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-danger"
+                                    data-toggle="modal" data-target="#deleteModal"
+                                    data-url="{% url 'inventory:supplier_delete' supplier.pk %}"
+                                    data-name="{{ supplier.business_name }}"
+                                    title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted">No suppliers yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Generic delete confirm modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Supplier</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete <strong id="deleteModalName"></strong>?
+                This cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                <form id="deleteModalForm" method="post">
+                    {% csrf_token %}
+                    <button class="btn btn-danger" type="submit">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'vendor/datatables/dataTables.bootstrap4.min.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'vendor/datatables/dataTables.bootstrap4.min.js' %}"></script>
+<script>
+    $('#suppliersTable').DataTable({ order: [[0, 'asc']], columnDefs: [{ orderable: false, targets: 4 }] });
+    $('#deleteModal').on('show.bs.modal', function (e) {
+        var btn = $(e.relatedTarget);
+        $(this).find('#deleteModalForm').attr('action', btn.data('url'));
+        $(this).find('#deleteModalName').text(btn.data('name'));
+    });
+</script>
+{% endblock %}

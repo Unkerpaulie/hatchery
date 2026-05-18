@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Delete Supplier · Hatchery{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Delete Supplier</h1>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <p class="mb-3">
+            Are you sure you want to delete <strong>{{ supplier.business_name }}</strong>?
+            Any batches linked to this supplier will have their supplier field cleared.
+            This action cannot be undone.
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">
+                <i class="fas fa-trash mr-1"></i>Yes, delete
+            </button>
+            <a href="{% url 'inventory:supplier_list' %}" class="btn btn-secondary ml-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

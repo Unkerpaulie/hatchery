@@ -12,14 +12,14 @@ DATABASES = {
     "default": env.db("DATABASE_URL"),
 }
 
-# Security hardening
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+# Security hardening — defaults are prod-safe; override in .env only to debug.
+SECURE_PROXY_SSL_HEADER        = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT            = env.bool("SECURE_SSL_REDIRECT",            default=True)
+SESSION_COOKIE_SECURE          = env.bool("SESSION_COOKIE_SECURE",          default=True)
+CSRF_COOKIE_SECURE             = env.bool("CSRF_COOKIE_SECURE",             default=True)
+SECURE_HSTS_SECONDS            = env.int( "SECURE_HSTS_SECONDS",            default=60 * 60 * 24 * 30)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
+SECURE_HSTS_PRELOAD            = env.bool("SECURE_HSTS_PRELOAD",            default=True)
 
 # WhiteNoise serves the compressed/hashed static manifest in production.
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"

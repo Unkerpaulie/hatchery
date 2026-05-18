@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}New Adjustment · Hatchery{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">New Adjustment</h1>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label>Batch <span class="text-danger">*</span></label>
+                    {{ form.batch }}
+                    {% if form.batch.errors %}
+                        <div class="invalid-feedback d-block">{{ form.batch.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Date <span class="text-danger">*</span></label>
+                    {{ form.date }}
+                    {% if form.date.errors %}
+                        <div class="invalid-feedback d-block">{{ form.date.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group col-md-4">
+                    <label>Quantity <span class="text-danger">*</span></label>
+                    {{ form.quantity }}
+                    {% if form.quantity.errors %}
+                        <div class="invalid-feedback d-block">{{ form.quantity.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group col-md-8">
+                    <label>Reason <span class="text-danger">*</span></label>
+                    {{ form.reason }}
+                    {% if form.reason.errors %}
+                        <div class="invalid-feedback d-block">{{ form.reason.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+            <hr>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save mr-1"></i> Save Adjustment
+            </button>
+            <a href="{% url 'sales:adjustment_list' %}" class="btn btn-secondary ml-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

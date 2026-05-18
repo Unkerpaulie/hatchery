@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} Customer · Hatchery{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+        {% if form.instance.pk %}Edit Customer{% else %}New Customer{% endif %}
+    </h1>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label>Name <span class="text-danger">*</span></label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                        <div class="invalid-feedback d-block">{{ form.name.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Phone</label>
+                    {{ form.phone }}
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label>Email</label>
+                    {{ form.email }}
+                    {% if form.email.errors %}
+                        <div class="invalid-feedback d-block">{{ form.email.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Address</label>
+                {{ form.address }}
+            </div>
+            <hr>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save mr-1"></i> Save
+            </button>
+            <a href="{% url 'sales:customer_list' %}" class="btn btn-secondary ml-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Sales · Hatchery{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'vendor/datatables/dataTables.bootstrap4.min.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Sales</h1>
+    <a href="{% url 'sales:sale_create' %}" class="btn btn-sm btn-primary shadow-sm">
+        <i class="fas fa-plus fa-sm text-white-50"></i> New Sale
+    </a>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" id="salesTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th class="text-right">Qty</th>
+                        <th class="text-right">Revenue</th>
+                        <th class="text-center" style="width:80px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for sale in sales %}
+                    <tr>
+                        <td>{{ sale.pk }}</td>
+                        <td>{{ sale.date }}</td>
+                        <td>{{ sale.customer }}</td>
+                        <td class="text-right">{{ sale.total_quantity }}</td>
+                        <td class="text-right">${{ sale.total_revenue|floatformat:2 }}</td>
+                        <td class="text-center">
+                            <a href="{% url 'sales:sale_detail' sale.pk %}"
+                               class="btn btn-sm btn-primary" title="View">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted">No sales yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'vendor/datatables/dataTables.bootstrap4.min.js' %}"></script>
+<script>
+    $('#salesTable').DataTable({
+        order: [[1, 'desc']],
+        columnDefs: [{ orderable: false, targets: 5 }]
+    });
+</script>
+{% endblock %}

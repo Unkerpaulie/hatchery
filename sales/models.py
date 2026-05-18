@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Sum
 from django.utils import timezone
+from django.utils.functional import cached_property
 
 from core.models import Party
 
@@ -49,11 +50,11 @@ class Sale(models.Model):
     def __str__(self):
         return f"Sale #{self.pk} \u2014 {self.customer} ({self.date})"
 
-    @property
+    @cached_property
     def total_quantity(self) -> int:
         return self.lines.aggregate(s=Sum("quantity"))["s"] or 0
 
-    @property
+    @cached_property
     def total_revenue(self) -> Decimal:
         agg = self.lines.aggregate(s=Sum(F("quantity") * F("unit_price")))["s"]
         return agg or Decimal("0")

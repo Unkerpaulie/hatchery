@@ -1,0 +1,53 @@
+/*
+ * hatchery.css — project-level overrides on top of SB Admin 2.
+ *
+ * SB Admin 2 places the sidebar as a flex item alongside #content-wrapper,
+ * so both scroll together with the page. These rules make the sidebar fixed
+ * and the topbar sticky so both stay visible when content is long.
+ */
+
+/* ── Fixed sidebar ─────────────────────────────────────────────────────────
+   Pull the sidebar out of the flex flow with position:fixed so it stays
+   anchored while the page scrolls. overflow-y:auto lets the sidebar itself
+   scroll if the menu is taller than the viewport.                           */
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 900;
+}
+
+/* Compensate for the fixed sidebar so content isn't hidden beneath it.
+   Mirrors the sidebar widths defined in sb-admin-2.css:
+     mobile / icon-only : 6.5rem
+     desktop expanded   : 14rem
+     desktop toggled    : 6.5rem  (body.sidebar-toggled)              */
+
+#wrapper #content-wrapper {
+    margin-left: 6.5rem;
+}
+
+@media (min-width: 768px) {
+    #wrapper #content-wrapper {
+        margin-left: 14rem;
+    }
+
+    body.sidebar-toggled #wrapper #content-wrapper {
+        margin-left: 6.5rem;
+    }
+}
+
+/* ── Sticky topbar ─────────────────────────────────────────────────────────
+   position:sticky keeps the topbar in the normal document flow (unlike
+   position:fixed) so no extra padding or margin compensation is needed on
+   the content below it. z-index keeps it above cards and modals-backdrop
+   but below the fixed sidebar (which is at 900).                           */
+
+#content .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}

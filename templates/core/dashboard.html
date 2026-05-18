@@ -81,7 +81,7 @@
 <script src="{% static 'vendor/chart.js/Chart.bundle.min.js' %}"></script>
 <script>
 (function () {
-    var raw = {{ chart_json }};
+    var raw = {{ chart_json|safe }};
     var labels = raw.labels.map(function (d) {
         var dt = new Date(d + 'T00:00:00');
         return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

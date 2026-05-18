@@ -45,16 +45,17 @@ class BatchQuerySet(models.QuerySet):
         SaleLine = apps.get_model("sales", "SaleLine")
         Adjustment = apps.get_model("sales", "Adjustment")
 
-        def _sum_sq(model, field="quantity"):
-            return (
-                model.objects.filter(batch=OuterRef("pk"))
-                .values("batch")
-                .annotate(s=Sum(field))
-                .values("s")
-            )
+        def _sum_sq(model, field="quantity", extra_filter=None):
+            qs = model.objects.filter(batch=OuterRef("pk"))
+            if extra_filter:
+                qs = qs.filter(**extra_filter)
+            return qs.values("batch").annotate(s=Sum(field)).values("s")
+
+        # Only CLOSED sales commit inventory.
+        closed_filter = {"sale__status": "closed"}
 
         revenue_sq = (
-            SaleLine.objects.filter(batch=OuterRef("pk"))
+            SaleLine.objects.filter(batch=OuterRef("pk"), sale__status="closed")
             .values("batch")
             .annotate(s=Sum(F("quantity") * F("unit_price")))
             .values("s")
@@ -67,7 +68,7 @@ class BatchQuerySet(models.QuerySet):
 
         return self.annotate(
             hatched_count=Coalesce(Subquery(_sum_sq(Hatch), output_field=IntegerField()), zero_int),
-            sold_count=Coalesce(Subquery(_sum_sq(SaleLine), output_field=IntegerField()), zero_int),
+            sold_count=Coalesce(Subquery(_sum_sq(SaleLine, extra_filter=closed_filter), output_field=IntegerField()), zero_int),
             adjusted_count=Coalesce(Subquery(_sum_sq(Adjustment), output_field=IntegerField()), zero_int),
             revenue=Coalesce(
                 Subquery(revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
@@ -140,7 +141,7 @@ class Batch(models.Model):
 
     @cached_property
     def sold_count(self) -> int:
-        return self.sale_lines.aggregate(s=Sum("quantity"))["s"] or 0
+        return self.sale_lines.filter(sale__status="closed").aggregate(s=Sum("quantity"))["s"] or 0
 
     @cached_property
     def adjusted_count(self) -> int:
@@ -152,7 +153,7 @@ class Batch(models.Model):
 
     @cached_property
     def revenue(self) -> Decimal:
-        agg = self.sale_lines.aggregate(s=Sum(F("quantity") * F("unit_price")))["s"]
+        agg = self.sale_lines.filter(sale__status="closed").aggregate(s=Sum(F("quantity") * F("unit_price")))["s"]
         return agg or Decimal("0")
 
     @property

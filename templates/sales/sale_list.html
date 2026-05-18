@@ -25,6 +25,7 @@
                         <th>Customer</th>
                         <th class="text-right">Qty</th>
                         <th class="text-right">Revenue</th>
+                        <th class="text-center">Status</th>
                         <th class="text-center" style="width:80px;">Actions</th>
                     </tr>
                 </thead>
@@ -37,6 +38,15 @@
                         <td class="text-right">{{ sale.total_quantity }}</td>
                         <td class="text-right">${{ sale.total_revenue|floatformat:2 }}</td>
                         <td class="text-center">
+                            {% if sale.status == "pending" %}
+                                <span class="badge badge-warning">Pending</span>
+                            {% elif sale.status == "closed" %}
+                                <span class="badge badge-success">Closed</span>
+                            {% else %}
+                                <span class="badge badge-secondary">Cancelled</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
                             <a href="{% url 'sales:sale_detail' sale.pk %}"
                                class="btn btn-sm btn-primary" title="View">
                                 <i class="fas fa-eye"></i>
@@ -44,7 +54,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="6" class="text-center text-muted">No sales yet.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted">No sales yet.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -59,7 +69,7 @@
 <script>
     $('#salesTable').DataTable({
         order: [[1, 'desc']],
-        columnDefs: [{ orderable: false, targets: 5 }]
+        columnDefs: [{ orderable: false, targets: 6 }]
     });
 </script>
 {% endblock %}

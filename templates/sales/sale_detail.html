@@ -5,10 +5,37 @@
 {% block content %}
 {# ── Page heading ─────────────────────────────────────────────────────── #}
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">Sale #{{ sale.pk }}</h1>
-    <a href="{% url 'sales:sale_list' %}" class="btn btn-sm btn-secondary shadow-sm">
-        <i class="fas fa-arrow-left fa-sm"></i> All Sales
-    </a>
+    <h1 class="h3 mb-0 text-gray-800">
+        Sale #{{ sale.pk }}
+        {% if sale.status == "pending" %}
+            <span class="badge badge-warning ml-2">Pending</span>
+        {% elif sale.status == "closed" %}
+            <span class="badge badge-success ml-2">Closed</span>
+        {% else %}
+            <span class="badge badge-secondary ml-2">Cancelled</span>
+        {% endif %}
+    </h1>
+    <div class="d-flex align-items-center">
+        {% if sale.status == "pending" %}
+        <form method="post" action="{% url 'sales:sale_close' sale.pk %}" class="mr-2"
+              onsubmit="return confirm('Close this sale? Inventory will be committed.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-success shadow-sm">
+                <i class="fas fa-check fa-sm"></i> Close Sale
+            </button>
+        </form>
+        <form method="post" action="{% url 'sales:sale_cancel' sale.pk %}" class="mr-2"
+              onsubmit="return confirm('Cancel this sale?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger shadow-sm">
+                <i class="fas fa-times fa-sm"></i> Cancel Sale
+            </button>
+        </form>
+        {% endif %}
+        <a href="{% url 'sales:sale_list' %}" class="btn btn-sm btn-secondary shadow-sm">
+            <i class="fas fa-arrow-left fa-sm"></i> All Sales
+        </a>
+    </div>
 </div>
 
 {# ── Sale summary card ────────────────────────────────────────────────── #}
@@ -20,6 +47,8 @@
             <dd class="col-sm-9">{{ sale.customer }}</dd>
             <dt class="col-sm-3">Date</dt>
             <dd class="col-sm-9">{{ sale.date }}</dd>
+            <dt class="col-sm-3">Status</dt>
+            <dd class="col-sm-9">{{ sale.get_status_display }}</dd>
             {% if sale.notes %}
             <dt class="col-sm-3">Notes</dt>
             <dd class="col-sm-9">{{ sale.notes }}</dd>
@@ -40,16 +69,28 @@
                         <th class="text-right">Qty</th>
                         <th class="text-right">Unit Price</th>
                         <th class="text-right">Line Total</th>
+                        {% if sale.status == "pending" %}
                         <th class="text-center" style="width:70px;">Del</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
                 {% for line in sale.lines.all %}
-                    <tr>
+                    <tr{% if line.pk in over_committed_pks %} class="table-danger"{% endif %}>
                         <td><a href="{% url 'inventory:batch_detail' line.batch_id %}">Batch #{{ line.batch_id }}</a></td>
-                        <td class="text-right">{{ line.quantity }}</td>
+                        <td class="text-right">
+                            {{ line.quantity }}
+                            {% if line.pk in over_committed_pks %}
+                            <span class="text-danger ml-1 js-line-warn"
+                                  data-line-id="{{ line.pk }}"
+                                  data-toggle="tooltip" data-placement="top" title="">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </span>
+                            {% endif %}
+                        </td>
                         <td class="text-right">${{ line.unit_price|floatformat:2 }}</td>
                         <td class="text-right">${{ line.line_total|floatformat:2 }}</td>
+                        {% if sale.status == "pending" %}
                         <td class="text-center">
                             <button class="btn btn-xs btn-danger" type="button"
                                     data-toggle="modal" data-target="#deleteLineModal"
@@ -58,9 +99,10 @@
                                     title="Remove"><i class="fas fa-trash"></i>
                             </button>
                         </td>
+                        {% endif %}
                     </tr>
                 {% empty %}
-                    <tr><td colspan="5" class="text-center text-muted">No lines yet — add one below.</td></tr>
+                    <tr><td colspan="{% if sale.status == 'pending' %}5{% else %}4{% endif %}" class="text-center text-muted">No lines yet.</td></tr>
                 {% endfor %}
                 </tbody>
                 {% if sale.lines.all %}
@@ -70,7 +112,7 @@
                         <td class="text-right">{{ sale.total_quantity }}</td>
                         <td></td>
                         <td class="text-right">${{ sale.total_revenue|floatformat:2 }}</td>
-                        <td></td>
+                        {% if sale.status == "pending" %}<td></td>{% endif %}
                     </tr>
                 </tfoot>
                 {% endif %}
@@ -79,7 +121,8 @@
     </div>
 </div>
 
-{# ── Add chick line form ───────────────────────────────────────────────── #}
+{# ── Add chick line form — only while PENDING ─────────────────────────── #}
+{% if sale.status == "pending" %}
 <div class="card shadow mb-4">
     <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Add Chicks</h6></div>
     <div class="card-body">
@@ -116,6 +159,7 @@
 </div>
 
 {# ── Delete line modal ─────────────────────────────────────────────────── #}
+{# Only rendered when the sale is PENDING (delete buttons are hidden otherwise) #}
 <div class="modal fade" id="deleteLineModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -136,11 +180,14 @@
         </div>
     </div>
 </div>
+{% endif %}{# end sale.status == "pending" #}
 {% endblock %}
 
 {% block extra_js %}
+{% if sale.status == "pending" %}
 <script>
-var batchAvail = {{ batch_available_json }};
+// ── Add-chicks batch selector: live available count ───────────────────────
+var batchAvail = {{ batch_available_json|safe }};
 $('#id_batch').on('change', function() {
     var id = $(this).val();
     var msg = id && batchAvail[id] !== undefined
@@ -149,11 +196,28 @@ $('#id_batch').on('change', function() {
     $('#availableMsg').text(msg);
 }).trigger('change');
 
+// ── Delete-line modal: populate from data attributes ──────────────────────
 $('#deleteLineModal').on('show.bs.modal', function(e) {
     var btn = $(e.relatedTarget);
     $(this).find('#deleteLineForm').attr('action', btn.data('url'));
     $(this).find('#dlQty').text(btn.data('qty'));
     $(this).find('#dlBatch').text(btn.data('batch'));
 });
+
+// ── Over-committed line warnings: populate tooltip titles then init ────────
+var lineAvail = {{ line_avail_json|safe }};
+$('.js-line-warn').each(function() {
+    var id = $(this).data('line-id').toString();
+    var avail = lineAvail[id];
+    if (avail !== undefined) {
+        $(this).attr(
+            'title',
+            'Only ' + avail + ' chick(s) now available in this batch — ' +
+            'reduce the quantity or remove this line before closing the sale.'
+        );
+    }
+});
+$('[data-toggle="tooltip"]').tooltip();
 </script>
+{% endif %}
 {% endblock %}

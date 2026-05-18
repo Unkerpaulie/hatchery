@@ -1,7 +1,9 @@
 """Sales forms: Customer, Sale header, SaleLine, Adjustment.
 
-Inventory availability validation lives in each form's ``clean()`` so it
-runs on every submission path, mirroring the model-level guard in clean().
+For PENDING sales, SaleLineForm skips the inventory ceiling check — lines on
+a pending sale are drafts; the ceiling is enforced at close time in
+SaleCloseView. AdjustmentForm still validates the ceiling on every save
+because adjustments always commit immediately.
 """
 
 from django import forms
@@ -22,8 +24,10 @@ _MONEY    = {"class": "form-control", "step": "0.01"}
 # ---- batch queryset helper -------------------------------------------------
 
 def _available_batches():
-    """Annotated queryset of batches that currently have chicks available."""
-    return Batch.objects.with_inventory().filter(chicks_available__gt=0)
+    """Annotated queryset of batches that currently have chicks available,
+    ordered by batch number ascending (oldest first).
+    """
+    return Batch.objects.with_inventory().filter(chicks_available__gt=0).order_by("id")
 
 
 def _batch_label(obj):
@@ -78,20 +82,9 @@ class SaleLineForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        batch = cleaned.get("batch")
-        qty   = cleaned.get("quantity")
-        if batch and qty:
-            prior = 0
-            if self.instance.pk:
-                prior = SaleLine.objects.filter(pk=self.instance.pk).values_list(
-                    "quantity", flat=True
-                ).first() or 0
-            ceiling = batch.chicks_available + prior
-            if qty > ceiling:
-                self.add_error(
-                    "quantity",
-                    f"Only {ceiling} chick(s) available in Batch #{batch.pk}.",
-                )
+        qty = cleaned.get("quantity")
+        if qty is not None and qty <= 0:
+            self.add_error("quantity", "Quantity must be greater than zero.")
         return cleaned
 
 

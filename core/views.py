@@ -45,8 +45,9 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         )
 
         # ── KPI: chicks available ────────────────────────────────────────
+        # Only CLOSED sales commit inventory; PENDING/CANCELLED are ignored.
         total_hatched   = Hatch.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
-        total_sold      = SaleLine.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
+        total_sold      = SaleLine.objects.filter(sale__status="closed").aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
         total_adjusted  = Adjustment.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
         ctx["chicks_available"] = total_hatched - total_sold - total_adjusted
 
@@ -57,7 +58,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         ctx["total_costs"] = batch_costs + expense_costs
 
         # ── KPI: revenue ─────────────────────────────────────────────────
-        ctx["total_revenue"] = SaleLine.objects.aggregate(
+        # Only CLOSED sales generate realised revenue.
+        ctx["total_revenue"] = SaleLine.objects.filter(sale__status="closed").aggregate(
             s=Coalesce(Sum(F("quantity") * F("unit_price")), zero)
         )["s"]
 
@@ -76,7 +78,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         sale_map = {
             str(r["sale__date"]): r["qty"]
             for r in (
-                SaleLine.objects.filter(sale__date__gte=cutoff)
+                SaleLine.objects.filter(sale__date__gte=cutoff, sale__status="closed")
                 .values("sale__date")
                 .annotate(qty=Sum("quantity"))
             )

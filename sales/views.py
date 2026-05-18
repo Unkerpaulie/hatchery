@@ -108,13 +108,40 @@ class SaleDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        sale = self.object
         ctx["saleline_form"] = SaleLineForm()
-        # JSON map of batch_id → available chicks for the JS available-count display.
+
+        # JSON map of batch_id → available chicks for the JS available-count display
+        # shown next to the "Add Chicks" batch selector.
         avail = {
             str(b.pk): b.chicks_available
             for b in Batch.objects.with_inventory().filter(chicks_available__gt=0)
         }
         ctx["batch_available_json"] = json.dumps(avail)
+
+        # For PENDING sales: find line items whose requested quantity now
+        # exceeds the batch's current available stock.  This can happen when
+        # another sale referencing the same batch has since been closed.
+        ctx["over_committed_pks"] = set()   # set of line PKs — used by {% if line.pk in … %}
+        ctx["line_avail_json"] = "{}"       # JSON {str(line.pk): available} for JS tooltips
+
+        if sale.status == Sale.Status.PENDING:
+            lines = list(sale.lines.all())
+            if lines:
+                batch_ids = list({line.batch_id for line in lines})
+                batch_avail = {
+                    b.pk: b.chicks_available
+                    for b in Batch.objects.with_inventory().filter(pk__in=batch_ids)
+                }
+                over = {
+                    line.pk: batch_avail.get(line.batch_id, 0)
+                    for line in lines
+                    if line.quantity > batch_avail.get(line.batch_id, 0)
+                }
+                ctx["over_committed_pks"] = set(over.keys())
+                # JSON uses string keys so JS can look up by data attribute value.
+                ctx["line_avail_json"] = json.dumps({str(k): v for k, v in over.items()})
+
         return ctx
 
 
@@ -130,7 +157,11 @@ class SaleLineCreateView(LoginRequiredMixin, CreateView):
         return get_object_or_404(Sale, pk=self.kwargs["sale_pk"])
 
     def form_valid(self, form):
-        form.instance.sale = self.get_sale()
+        sale = self.get_sale()
+        if sale.status != Sale.Status.PENDING:
+            messages.error(self.request, "Lines can only be added to pending sales.")
+            return redirect("sales:sale_detail", pk=sale.pk)
+        form.instance.sale = sale
         messages.success(self.request, "Chick line added.")
         return super().form_valid(form)
 
@@ -145,14 +176,87 @@ class SaleLineCreateView(LoginRequiredMixin, CreateView):
 
 
 class SaleLineDeleteView(LoginRequiredMixin, View):
-    """POST-only delete — confirmed via modal on the sale detail page."""
+    """POST-only delete — confirmed via modal on the sale detail page.
+    Only allowed while the parent sale is PENDING.
+    """
 
     def post(self, request, pk):
         line = get_object_or_404(SaleLine, pk=pk)
-        sale_pk = line.sale_id
+        sale = line.sale
+        if sale.status != Sale.Status.PENDING:
+            messages.error(request, "Lines can only be removed from pending sales.")
+            return redirect("sales:sale_detail", pk=sale.pk)
         line.delete()
         messages.success(request, "Line item removed.")
-        return redirect("sales:sale_detail", pk=sale_pk)
+        return redirect("sales:sale_detail", pk=sale.pk)
+
+
+class SaleCloseView(LoginRequiredMixin, View):
+    """POST-only action: validate inventory then transition sale to CLOSED.
+
+    Inventory ceiling is checked here for every line in the sale. Because
+    only CLOSED sales are counted in ``sold_count``, the batch's
+    ``chicks_available`` value already excludes this (still-pending) sale, so
+    we simply compare each line's quantity against the current available stock.
+    """
+
+    def post(self, request, pk):
+        sale = get_object_or_404(Sale.objects.prefetch_related("lines__batch"), pk=pk)
+        if sale.status != Sale.Status.PENDING:
+            messages.error(request, "Only pending sales can be closed.")
+            return redirect("sales:sale_detail", pk=pk)
+
+        lines = list(sale.lines.all())
+        if not lines:
+            messages.error(request, "Cannot close a sale with no line items.")
+            return redirect("sales:sale_detail", pk=pk)
+
+        # Fetch fresh inventory annotations for all relevant batches.
+        batch_ids = [l.batch_id for l in lines]
+        batch_map = {
+            b.pk: b
+            for b in Batch.objects.with_inventory().filter(pk__in=batch_ids)
+        }
+
+        # Aggregate total quantity requested per batch across all lines in
+        # this sale (a batch can appear on multiple lines).
+        from collections import defaultdict
+        needed: dict = defaultdict(int)
+        for line in lines:
+            needed[line.batch_id] += line.quantity
+
+        errors = []
+        for batch_id, qty in needed.items():
+            batch = batch_map[batch_id]
+            if qty > batch.chicks_available:
+                errors.append(
+                    f"Batch #{batch_id}: {qty} requested but only "
+                    f"{batch.chicks_available} available."
+                )
+
+        if errors:
+            for err in errors:
+                messages.error(request, err)
+            return redirect("sales:sale_detail", pk=pk)
+
+        sale.status = Sale.Status.CLOSED
+        sale.save(update_fields=["status", "updated_at"])
+        messages.success(request, "Sale closed — inventory has been committed.")
+        return redirect("sales:sale_detail", pk=pk)
+
+
+class SaleCancelView(LoginRequiredMixin, View):
+    """POST-only action: cancel a pending sale. Has no inventory effect."""
+
+    def post(self, request, pk):
+        sale = get_object_or_404(Sale, pk=pk)
+        if sale.status != Sale.Status.PENDING:
+            messages.error(request, "Only pending sales can be cancelled.")
+            return redirect("sales:sale_detail", pk=pk)
+        sale.status = Sale.Status.CANCELLED
+        sale.save(update_fields=["status", "updated_at"])
+        messages.success(request, "Sale cancelled.")
+        return redirect("sales:sale_detail", pk=pk)
 
 
 # ---------------------------------------------------------------------------

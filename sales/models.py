@@ -35,11 +35,21 @@ class Customer(Party):
 class Sale(models.Model):
     """A sale event for a single customer on a single date. Composed of one
     or more SaleLines so chicks from multiple batches can be sold together.
+
+    Status lifecycle: PENDING (draft) → CLOSED (inventory committed)
+                                      → CANCELLED (no inventory effect).
+    Only CLOSED sales deduct from chick inventory.
     """
 
+    class Status(models.TextChoices):
+        PENDING   = "pending",   "Pending"
+        CLOSED    = "closed",    "Closed"
+        CANCELLED = "cancelled", "Cancelled"
+
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="sales")
-    date = models.DateField(default=timezone.localdate)
-    notes = models.TextField(blank=True)
+    date     = models.DateField(default=timezone.localdate)
+    notes    = models.TextField(blank=True)
+    status   = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -62,9 +72,12 @@ class Sale(models.Model):
 
 class SaleLine(models.Model):
     """One line in a sale: a quantity drawn from a specific batch at a
-    specific unit price. ``clean()`` guarantees the line never overdraws
-    the batch's available chicks (accounting for the line's own prior
-    contribution when editing).
+    specific unit price.
+
+    Inventory ceiling validation is only enforced for CLOSED sales (the
+    point at which inventory is actually committed). While a sale is PENDING
+    the line is a draft and the ceiling is not checked here — it is
+    validated instead by SaleCloseView before the status transition.
     """
 
     sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name="lines")
@@ -92,8 +105,16 @@ class SaleLine(models.Model):
         if self.batch_id is None:
             return
 
-        # Available = current available + any quantity this line already
-        # contributes (so editing a saved line uses the right ceiling).
+        # Only enforce the inventory ceiling once the sale is CLOSED.
+        # For PENDING sales the line is a draft; SaleCloseView validates
+        # the ceiling for all lines before committing the status change.
+        if self.sale_id:
+            sale_status = Sale.objects.filter(pk=self.sale_id).values_list(
+                "status", flat=True
+            ).first()
+            if sale_status != Sale.Status.CLOSED:
+                return
+
         prior_quantity = 0
         if self.pk:
             prior_quantity = SaleLine.objects.filter(pk=self.pk).values_list(

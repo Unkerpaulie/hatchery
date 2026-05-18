@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Delete Expense · Hatchery{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Delete Expense</h1>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <p>Are you sure you want to delete this expense?</p>
+        <dl class="row">
+            <dt class="col-sm-3">Date</dt>
+            <dd class="col-sm-9">{{ expense.date }}</dd>
+            <dt class="col-sm-3">Category</dt>
+            <dd class="col-sm-9">{{ expense.get_category_display }}</dd>
+            <dt class="col-sm-3">Description</dt>
+            <dd class="col-sm-9">{{ expense.description }}</dd>
+            <dt class="col-sm-3">Amount</dt>
+            <dd class="col-sm-9">${{ expense.amount|floatformat:2 }}</dd>
+        </dl>
+        <hr>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">
+                <i class="fas fa-trash mr-1"></i> Yes, Delete
+            </button>
+            <a href="{% url 'inventory:expense_list' %}" class="btn btn-secondary ml-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,8 +1,8 @@
-"""Inventory forms for Supplier, Batch, and Hatch records."""
+"""Inventory forms for Supplier, Batch, Hatch, and Expense records."""
 
 from django import forms
 
-from .models import Batch, Hatch, Supplier
+from .models import Batch, Expense, Hatch, Supplier
 
 # ---- shared widget helpers -------------------------------------------------
 
@@ -83,3 +83,26 @@ class HatchForm(forms.ModelForm):
         if qty is not None and qty <= 0:
             self.add_error("quantity", "Quantity must be greater than zero.")
         return cleaned
+
+
+# ---- Expense ---------------------------------------------------------------
+
+_MONEY = {"class": "form-control", "step": "0.01"}
+
+class ExpenseForm(forms.ModelForm):
+    class Meta:
+        model = Expense
+        fields = ["date", "category", "amount", "description"]
+        widgets = {
+            "date":        forms.DateInput(attrs=_DATE),
+            "category":    forms.Select(attrs=_SELECT),
+            "amount":      forms.NumberInput(attrs=_MONEY),
+            "description": forms.TextInput(attrs=_TEXT),
+        }
+        labels = {"amount": "Amount ($)"}
+
+    def clean_amount(self):
+        amount = self.cleaned_data.get("amount")
+        if amount is not None and amount <= 0:
+            raise forms.ValidationError("Amount must be greater than zero.")
+        return amount

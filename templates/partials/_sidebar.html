@@ -29,6 +29,11 @@
             <i class="fas fa-fw fa-truck"></i>
             <span>Suppliers</span></a>
     </li>
+    <li class="nav-item {% if request.resolver_match.app_name == 'inventory' and 'expense' in request.resolver_match.url_name %}active{% endif %}">
+        <a class="nav-link" href="{% url 'inventory:expense_list' %}">
+            <i class="fas fa-fw fa-receipt"></i>
+            <span>Expenses</span></a>
+    </li>
 
     <hr class="sidebar-divider">
     <div class="sidebar-heading">Sales</div>

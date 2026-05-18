@@ -16,7 +16,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.views.generic import TemplateView
 
-from inventory.models import Batch, Hatch
+from inventory.models import Batch, Expense, Hatch
 from sales.models import Adjustment, SaleLine
 
 
@@ -28,31 +28,35 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
 
-        # ── KPI: batch counts ────────────────────────────────────────────
-        ctx["active_batches"] = Batch.objects.filter(
-            status=Batch.Status.INCUBATING
-        ).count()
-
-        # ── KPI: inventory totals ────────────────────────────────────────
-        # Use three separate top-level aggregates so we can both display
-        # total_hatched as its own card and derive chicks_available without
-        # aggregating over a compound annotation (which SQLite doesn't
-        # always handle cleanly).
-        total_hatched = (
-            Hatch.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
+        # ── KPI: eggs currently incubating ───────────────────────────────
+        # Fetch total egg quantity and total already hatched for all
+        # INCUBATING batches separately (avoids aggregating over compound
+        # annotations, which SQLite can handle inconsistently).
+        incubating_agg = (
+            Batch.objects.with_inventory()
+            .filter(status=Batch.Status.INCUBATING)
+            .aggregate(
+                total_qty=Coalesce(Sum("quantity"), Value(0)),
+                total_hatched=Coalesce(Sum("hatched_count"), Value(0)),
+            )
         )
-        total_sold = (
-            SaleLine.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
-        )
-        total_adjusted = (
-            Adjustment.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
+        ctx["eggs_incubating"] = (
+            incubating_agg["total_qty"] - incubating_agg["total_hatched"]
         )
 
-        ctx["total_hatched"] = total_hatched
+        # ── KPI: chicks available ────────────────────────────────────────
+        total_hatched   = Hatch.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
+        total_sold      = SaleLine.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
+        total_adjusted  = Adjustment.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
         ctx["chicks_available"] = total_hatched - total_sold - total_adjusted
 
-        # ── KPI: revenue ─────────────────────────────────────────────────
+        # ── KPI: total costs (batch egg costs + operating expenses) ──────
         zero = Value(Decimal("0"), output_field=DecimalField(max_digits=12, decimal_places=2))
+        batch_costs   = Batch.objects.aggregate(s=Coalesce(Sum("total_cost"), zero))["s"]
+        expense_costs = Expense.objects.aggregate(s=Coalesce(Sum("amount"), zero))["s"]
+        ctx["total_costs"] = batch_costs + expense_costs
+
+        # ── KPI: revenue ─────────────────────────────────────────────────
         ctx["total_revenue"] = SaleLine.objects.aggregate(
             s=Coalesce(Sum(F("quantity") * F("unit_price")), zero)
         )["s"]

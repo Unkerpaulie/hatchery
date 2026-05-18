@@ -193,3 +193,36 @@ class Hatch(models.Model):
             raise ValidationError(
                 "Hatch records can only be added while the batch is incubating."
             )
+
+
+class Expense(models.Model):
+    """An operating expense not tied to a specific batch (feed, electricity,
+    supplies, labour, etc.). Batch egg-purchase costs are captured on
+    ``Batch.total_cost``; this model covers all other running costs so the
+    dashboard can show a meaningful total-cost figure.
+    """
+
+    class Category(models.TextChoices):
+        FEED        = "feed",        "Feed"
+        ELECTRICITY = "electricity", "Electricity"
+        SUPPLIES    = "supplies",    "Supplies"
+        LABOR       = "labor",       "Labor"
+        OTHER       = "other",       "Other"
+
+    date        = models.DateField(default=timezone.localdate)
+    amount      = models.DecimalField(max_digits=10, decimal_places=2)
+    category    = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)
+    description = models.CharField(max_length=200)
+
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date", "-id"]
+
+    def __str__(self):
+        return f"{self.get_category_display()} — ${self.amount} ({self.date})"
+
+    def clean(self):
+        if self.amount is not None and self.amount <= 0:
+            raise ValidationError({"amount": "Amount must be greater than zero."})

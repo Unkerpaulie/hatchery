@@ -16,8 +16,8 @@ from django.views.generic import (
 
 from sales.models import SaleLine
 
-from .forms import BatchForm, HatchForm, SupplierForm
-from .models import Batch, Hatch, Supplier
+from .forms import BatchForm, ExpenseForm, HatchForm, SupplierForm
+from .models import Batch, Expense, Hatch, Supplier
 
 
 # ---------------------------------------------------------------------------
@@ -202,3 +202,47 @@ class HatchDeleteView(LoginRequiredMixin, View):
         hatch.delete()
         messages.success(request, "Hatch record deleted.")
         return redirect("inventory:batch_detail", pk=batch_pk)
+
+
+# ---------------------------------------------------------------------------
+# Expense views
+# ---------------------------------------------------------------------------
+
+class ExpenseListView(LoginRequiredMixin, ListView):
+    model = Expense
+    template_name = "inventory/expense_list.html"
+    context_object_name = "expenses"
+
+
+class ExpenseCreateView(LoginRequiredMixin, CreateView):
+    model = Expense
+    form_class = ExpenseForm
+    template_name = "inventory/expense_form.html"
+    success_url = reverse_lazy("inventory:expense_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Expense recorded.")
+        return super().form_valid(form)
+
+
+class ExpenseUpdateView(LoginRequiredMixin, UpdateView):
+    model = Expense
+    form_class = ExpenseForm
+    template_name = "inventory/expense_form.html"
+    context_object_name = "expense"
+    success_url = reverse_lazy("inventory:expense_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Expense updated.")
+        return super().form_valid(form)
+
+
+class ExpenseDeleteView(LoginRequiredMixin, DeleteView):
+    model = Expense
+    template_name = "inventory/expense_confirm_delete.html"
+    context_object_name = "expense"
+    success_url = reverse_lazy("inventory:expense_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Expense deleted.")
+        return super().form_valid(form)

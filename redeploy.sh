@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Incremental redeploy. Run on the server after pushing changes.
+# Incremental redeploy.  Run as a sudo-capable admin user after pushing changes.
+# App-owned commands run as APP_USER; only the systemctl call needs plain sudo.
 
 set -euo pipefail
 
@@ -23,16 +24,18 @@ else
 fi
 
 GUNICORN_SERVICE="${GUNICORN_SERVICE_NAME:-gunicorn-hatchery}"
+APP_USER="${APP_USER:-hatchery}"
 
-cd "${PROJECT_DIR}"
-git pull --ff-only
+sudo -H -u "${APP_USER}" git -C "${PROJECT_DIR}" pull --ff-only
 
-# shellcheck disable=SC1091
-source "${VENV_DIR}/bin/activate"
+sudo -H -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${PROJECT_DIR}/requirements.txt"
 
-pip install -r requirements.txt
+sudo -H -u "${APP_USER}" \
+    env DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE}" \
+    "${VENV_DIR}/bin/python" "${PROJECT_DIR}/manage.py" migrate --noinput
 
-python manage.py migrate --noinput
-python manage.py collectstatic --noinput
+sudo -H -u "${APP_USER}" \
+    env DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE}" \
+    "${VENV_DIR}/bin/python" "${PROJECT_DIR}/manage.py" collectstatic --noinput
 
 sudo systemctl restart "${GUNICORN_SERVICE}"

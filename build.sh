@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Initial server-side setup for the hatchery deployment.
-# Run from the Django project folder on the Ubuntu VPS droplet.
+# Initial server-side setup.  Run as a sudo-capable admin user from the
+# Django project folder on the Ubuntu VPS droplet.
+# App-owned commands run as APP_USER; only the systemctl call needs plain sudo.
 
 set -euo pipefail
 
@@ -23,21 +24,24 @@ else
     export DJANGO_SETTINGS_MODULE="hatchery.settings.dev"
 fi
 
-# Read the Gunicorn service name from .env so each app on the server can differ.
+# Read the Gunicorn service name and app system user from .env.
 GUNICORN_SERVICE="${GUNICORN_SERVICE_NAME:-gunicorn-hatchery}"
+APP_USER="${APP_USER:-hatchery}"
 
 # Create the production virtual environment if it does not already exist.
 if [ ! -d "${VENV_DIR}" ]; then
-    python3.12 -m venv "${VENV_DIR}"
+    sudo -H -u "${APP_USER}" python3.12 -m venv "${VENV_DIR}"
 fi
 
-# shellcheck disable=SC1091
-source "${VENV_DIR}/bin/activate"
+sudo -H -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --upgrade pip
+sudo -H -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${PROJECT_DIR}/requirements.txt"
 
-pip install --upgrade pip
-pip install -r "${PROJECT_DIR}/requirements.txt"
+sudo -H -u "${APP_USER}" \
+    env DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE}" \
+    "${VENV_DIR}/bin/python" "${PROJECT_DIR}/manage.py" migrate --noinput
 
-python "${PROJECT_DIR}/manage.py" migrate --noinput
-python "${PROJECT_DIR}/manage.py" collectstatic --noinput
+sudo -H -u "${APP_USER}" \
+    env DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE}" \
+    "${VENV_DIR}/bin/python" "${PROJECT_DIR}/manage.py" collectstatic --noinput
 
 sudo systemctl restart "${GUNICORN_SERVICE}"

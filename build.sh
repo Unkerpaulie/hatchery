@@ -28,6 +28,17 @@ fi
 GUNICORN_SERVICE="${GUNICORN_SERVICE_NAME:-gunicorn-hatchery}"
 APP_USER="${APP_USER:-hatchery}"
 
+# Ensure Gunicorn log files exist and are owned by the app user.
+# /var/log is root-owned so only sudo can create files there.
+for log_file in \
+    "/var/log/${GUNICORN_SERVICE}-access.log" \
+    "/var/log/${GUNICORN_SERVICE}-error.log"; do
+    if [ ! -f "${log_file}" ]; then
+        sudo touch "${log_file}"
+        sudo chown "${APP_USER}:${APP_USER}" "${log_file}"
+    fi
+done
+
 # Create the production virtual environment if it does not already exist.
 if [ ! -d "${VENV_DIR}" ]; then
     sudo -H -u "${APP_USER}" python3.12 -m venv "${VENV_DIR}"

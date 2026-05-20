@@ -43,6 +43,34 @@ class CustomerCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
+class CustomerDetailView(LoginRequiredMixin, DetailView):
+    model = Customer
+    template_name = "sales/customer_detail.html"
+    context_object_name = "customer"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        customer = self.object
+
+        # Evaluate once into a list so we can iterate twice without a second query.
+        sales = list(
+            _sale_list_queryset()
+            .filter(customer=customer)
+            .order_by("-date", "-id")
+        )
+        ctx["sales"] = sales
+        ctx["grand_total_quantity"] = sum(s.total_quantity for s in sales)
+        ctx["grand_total_revenue"]  = sum(s.total_revenue  for s in sales)
+
+        # Phone entries for the contact card — same pattern as supplier_detail.
+        ctx["phone_entries"] = [
+            (customer.phone_1, "Phone 1", customer.get_phone_1_type_display(), customer.phone_1_whatsapp, customer.phone_1_wa_url),
+            (customer.phone_2, "Phone 2", customer.get_phone_2_type_display(), customer.phone_2_whatsapp, customer.phone_2_wa_url),
+            (customer.phone_3, "Phone 3", customer.get_phone_3_type_display(), customer.phone_3_whatsapp, customer.phone_3_wa_url),
+        ]
+        return ctx
+
+
 class CustomerUpdateView(LoginRequiredMixin, UpdateView):
     model = Customer
     form_class = CustomerForm

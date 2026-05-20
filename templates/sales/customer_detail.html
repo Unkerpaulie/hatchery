@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }} · Hatchery{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">{{ customer.name }}</h1>
+    <div>
+        <a href="{% url 'sales:customer_update' customer.pk %}" class="btn btn-sm btn-info shadow-sm">
+            <i class="fas fa-edit fa-sm"></i> Edit
+        </a>
+        <a href="{% url 'sales:customer_list' %}" class="btn btn-sm btn-secondary shadow-sm ml-2">
+            <i class="fas fa-arrow-left fa-sm"></i> Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+
+    {# ── Contact details card ────────────────────────────────────────────── #}
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Contact Details</h6>
+            </div>
+            <div class="card-body">
+
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">Name</span>
+                    <div class="font-weight-bold">{{ customer.name }}</div>
+                </div>
+
+                {% if customer.email %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">Email</span>
+                    <div><a href="mailto:{{ customer.email }}">{{ customer.email }}</a></div>
+                </div>
+                {% endif %}
+
+                {% for number, label, phone_type, has_wa, wa_url in phone_entries %}
+                {% if number %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">{{ label }}</span>
+                    <span class="ml-2 badge badge-secondary" style="font-size:0.7rem;">{{ phone_type }}</span>
+                    <div class="d-flex align-items-center mt-1">
+                        <span>{{ number }}</span>
+                        {% if has_wa %}
+                        <a href="{{ wa_url }}" target="_blank" rel="noopener noreferrer"
+                           class="btn btn-sm btn-success ml-2 py-0 px-2" title="Open in WhatsApp">
+                            <i class="fab fa-whatsapp"></i> WhatsApp
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+
+                {% if customer.address %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">Address</span>
+                    <div>{{ customer.address|linebreaksbr }}</div>
+                </div>
+                {% endif %}
+
+                {% if customer.notes %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">Notes</span>
+                    <div class="text-muted">{{ customer.notes|linebreaksbr }}</div>
+                </div>
+                {% endif %}
+
+                {% if not customer.email and not customer.phone_1 and not customer.phone_2 and not customer.phone_3 and not customer.address %}
+                <p class="text-muted small mt-2 mb-0">No additional contact information on file.
+                    <a href="{% url 'sales:customer_update' customer.pk %}">Add it now.</a>
+                </p>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+    {# ── Sales history card ──────────────────────────────────────────────── #}
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header py-3 d-flex align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Sales History</h6>
+                <a href="{% url 'sales:sale_create' %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus fa-sm"></i> New Sale
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Sale #</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th class="text-right">Chicks</th>
+                                <th class="text-right">Revenue</th>
+                                <th class="text-center" style="width:60px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for sale in sales %}
+                            <tr>
+                                <td>{{ sale.pk }}</td>
+                                <td>{{ sale.date }}</td>
+                                <td>
+                                    {% if sale.status == "pending" %}
+                                        <span class="badge badge-warning">Pending</span>
+                                    {% elif sale.status == "closed" %}
+                                        <span class="badge badge-success">Closed</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">Cancelled</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-right">{{ sale.total_quantity }}</td>
+                                <td class="text-right">${{ sale.total_revenue|floatformat:2 }}</td>
+                                <td class="text-center">
+                                    <a href="{% url 'sales:sale_detail' sale.pk %}"
+                                       class="btn btn-sm btn-primary py-0 px-2" title="View sale">
+                                        <i class="fas fa-eye fa-xs"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-3">No sales yet for this customer.</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                        {% if sales %}
+                        <tfoot class="font-weight-bold bg-gray-100">
+                            <tr>
+                                <td colspan="3">
+                                    {{ sales|length }} sale{{ sales|length|pluralize }}
+                                </td>
+                                <td class="text-right">{{ grand_total_quantity }}</td>
+                                <td class="text-right">${{ grand_total_revenue|floatformat:2 }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

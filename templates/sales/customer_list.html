@@ -24,7 +24,7 @@
                         <th>Phone</th>
                         <th>Email</th>
                         <th>Address</th>
-                        <th class="text-center" style="width:80px;">Actions</th>
+                        <th class="text-center" style="width:120px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -35,6 +35,10 @@
                         <td>{{ customer.email|default:"—" }}</td>
                         <td>{{ customer.address|default:"—" }}</td>
                         <td class="text-center">
+                            <a href="{% url 'sales:customer_detail' customer.pk %}"
+                               class="btn btn-sm btn-primary" title="View">
+                                <i class="fas fa-eye"></i>
+                            </a>
                             <a href="{% url 'sales:customer_update' customer.pk %}"
                                class="btn btn-sm btn-info" title="Edit">
                                 <i class="fas fa-edit"></i>

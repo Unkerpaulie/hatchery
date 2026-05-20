@@ -13,13 +13,13 @@
     <div class="card-body">
         <form method="post" novalidate>
             {% csrf_token %}
+
+            {# ── Business details ─────────────────────────────────────── #}
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label>Business Name <span class="text-danger">*</span></label>
                     {{ form.business_name }}
-                    {% if form.business_name.errors %}
-                        <div class="invalid-feedback d-block">{{ form.business_name.errors|join:", " }}</div>
-                    {% endif %}
+                    {% if form.business_name.errors %}<div class="invalid-feedback d-block">{{ form.business_name.errors|join:", " }}</div>{% endif %}
                 </div>
                 <div class="form-group col-md-6">
                     <label>Contact Person</label>
@@ -27,25 +27,83 @@
                 </div>
             </div>
             <div class="form-row">
-                <div class="form-group col-md-4">
-                    <label>Phone</label>
-                    {{ form.phone }}
-                </div>
-                <div class="form-group col-md-8">
+                <div class="form-group col-md-6">
                     <label>Email</label>
                     {{ form.email }}
-                    {% if form.email.errors %}
-                        <div class="invalid-feedback d-block">{{ form.email.errors|join:", " }}</div>
-                    {% endif %}
+                    {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|join:", " }}</div>{% endif %}
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Website</label>
+                    {{ form.website }}
+                    {% if form.website.errors %}<div class="invalid-feedback d-block">{{ form.website.errors|join:", " }}</div>{% endif %}
                 </div>
             </div>
-            <div class="form-group">
-                <label>Address</label>
-                {{ form.address }}
+
+            {# ── Phone entries ────────────────────────────────────────── #}
+            <div class="form-row align-items-end">
+                <div class="form-group col-md-5">
+                    <label>Phone 1</label>
+                    {{ form.phone_1 }}
+                </div>
+                <div class="form-group col-md-3">
+                    <label>Type</label>
+                    {{ form.phone_1_type }}
+                </div>
+                <div class="form-group col-auto d-flex align-items-center" style="padding-bottom:1rem;">
+                    <div class="form-check ml-2">
+                        {{ form.phone_1_whatsapp }}
+                        <label class="form-check-label ml-1"><i class="fab fa-whatsapp text-success"></i> WhatsApp</label>
+                    </div>
+                </div>
             </div>
+            <div class="form-row align-items-end">
+                <div class="form-group col-md-5">
+                    <label>Phone 2</label>
+                    {{ form.phone_2 }}
+                </div>
+                <div class="form-group col-md-3">
+                    <label>Type</label>
+                    {{ form.phone_2_type }}
+                </div>
+                <div class="form-group col-auto d-flex align-items-center" style="padding-bottom:1rem;">
+                    <div class="form-check ml-2">
+                        {{ form.phone_2_whatsapp }}
+                        <label class="form-check-label ml-1"><i class="fab fa-whatsapp text-success"></i> WhatsApp</label>
+                    </div>
+                </div>
+            </div>
+            <div class="form-row align-items-end">
+                <div class="form-group col-md-5">
+                    <label>Phone 3</label>
+                    {{ form.phone_3 }}
+                </div>
+                <div class="form-group col-md-3">
+                    <label>Type</label>
+                    {{ form.phone_3_type }}
+                </div>
+                <div class="form-group col-auto d-flex align-items-center" style="padding-bottom:1rem;">
+                    <div class="form-check ml-2">
+                        {{ form.phone_3_whatsapp }}
+                        <label class="form-check-label ml-1"><i class="fab fa-whatsapp text-success"></i> WhatsApp</label>
+                    </div>
+                </div>
+            </div>
+
+            {# ── Address & Notes ─────────────────────────────────────── #}
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label>Address</label>
+                    {{ form.address }}
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Notes</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+
             <hr>
             <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save mr-1"></i>Save
+                <i class="fas fa-save mr-1"></i> Save
             </button>
             <a href="{% url 'inventory:supplier_list' %}" class="btn btn-secondary ml-2">Cancel</a>
         </form>

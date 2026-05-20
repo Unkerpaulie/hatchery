@@ -24,7 +24,8 @@ class Supplier(Party):
     """
 
     business_name = models.CharField(max_length=200)
-    contact_name = models.CharField(max_length=200, blank=True)
+    contact_name  = models.CharField(max_length=200, blank=True)
+    website       = models.URLField(blank=True)
 
     class Meta:
         ordering = ["business_name"]

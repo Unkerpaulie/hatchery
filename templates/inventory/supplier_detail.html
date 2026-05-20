@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}{{ supplier.business_name }} · Hatchery{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">{{ supplier.business_name }}</h1>
+    <div>
+        <a href="{% url 'inventory:supplier_update' supplier.pk %}" class="btn btn-sm btn-info shadow-sm">
+            <i class="fas fa-edit fa-sm"></i> Edit
+        </a>
+        <a href="{% url 'inventory:supplier_list' %}" class="btn btn-sm btn-secondary shadow-sm ml-2">
+            <i class="fas fa-arrow-left fa-sm"></i> Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+
+    {# ── Contact details card ────────────────────────────────────────────── #}
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Contact Details</h6>
+            </div>
+            <div class="card-body">
+
+                {% if supplier.contact_name %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">Contact Person</span>
+                    <div>{{ supplier.contact_name }}</div>
+                </div>
+                {% endif %}
+
+                {% if supplier.email %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">Email</span>
+                    <div><a href="mailto:{{ supplier.email }}">{{ supplier.email }}</a></div>
+                </div>
+                {% endif %}
+
+                {% if supplier.website %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">Website</span>
+                    <div>
+                        <a href="{{ supplier.website }}" target="_blank" rel="noopener noreferrer">
+                            {{ supplier.website }} <i class="fas fa-external-link-alt fa-xs ml-1"></i>
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                {# Phone slots #}
+                {% for number, label, phone_type, has_wa, wa_url in phone_entries %}
+                {% if number %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">{{ label }}</span>
+                    <span class="ml-2 badge badge-secondary" style="font-size:0.7rem;">{{ phone_type }}</span>
+                    <div class="d-flex align-items-center mt-1">
+                        <span>{{ number }}</span>
+                        {% if has_wa %}
+                        <a href="{{ wa_url }}" target="_blank" rel="noopener noreferrer"
+                           class="btn btn-sm btn-success ml-2 py-0 px-2" title="Open in WhatsApp">
+                            <i class="fab fa-whatsapp"></i> WhatsApp
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+
+                {% if supplier.address %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">Address</span>
+                    <div>{{ supplier.address|linebreaksbr }}</div>
+                </div>
+                {% endif %}
+
+                {% if supplier.notes %}
+                <div class="mb-3">
+                    <span class="text-xs font-weight-bold text-gray-500 text-uppercase">Notes</span>
+                    <div class="text-muted">{{ supplier.notes|linebreaksbr }}</div>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+    {# ── Batches summary card ─────────────────────────────────────────────── #}
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Batches</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Date</th>
+                                <th>Eggs</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for batch in supplier.batches.all %}
+                            <tr>
+                                <td>{{ batch.pk }}</td>
+                                <td>{{ batch.purchase_date }}</td>
+                                <td>{{ batch.quantity }}</td>
+                                <td>{{ batch.get_status_display }}</td>
+                                <td>
+                                    <a href="{% url 'inventory:batch_detail' batch.pk %}"
+                                       class="btn btn-xs btn-sm btn-primary py-0 px-1">
+                                        <i class="fas fa-eye fa-xs"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5" class="text-center text-muted py-3">No batches yet.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

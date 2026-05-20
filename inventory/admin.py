@@ -11,7 +11,7 @@ class HatchInline(admin.TabularInline):
 
 @admin.register(Supplier)
 class SupplierAdmin(admin.ModelAdmin):
-    list_display = ("business_name", "contact_name", "phone", "email")
+    list_display = ("business_name", "contact_name", "phone_1", "email")
     search_fields = ("business_name", "contact_name", "email")
 
 

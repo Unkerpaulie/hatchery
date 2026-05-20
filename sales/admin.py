@@ -10,7 +10,7 @@ class SaleLineInline(admin.TabularInline):
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ("name", "phone", "email")
+    list_display = ("name", "phone_1", "email")
     search_fields = ("name", "email")
 
     def has_delete_permission(self, request, obj=None):

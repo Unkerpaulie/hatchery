@@ -53,6 +53,27 @@ class SupplierUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
+class SupplierDetailView(LoginRequiredMixin, DetailView):
+    model = Supplier
+    template_name = "inventory/supplier_detail.html"
+    context_object_name = "supplier"
+
+    def get_queryset(self):
+        return Supplier.objects.prefetch_related("batches")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        s = self.object
+        # Build a list of (number, label, display_type, has_whatsapp, wa_url)
+        # so the template can loop without repeating itself.
+        ctx["phone_entries"] = [
+            (s.phone_1, "Phone 1", s.get_phone_1_type_display(), s.phone_1_whatsapp, s.phone_1_wa_url),
+            (s.phone_2, "Phone 2", s.get_phone_2_type_display(), s.phone_2_whatsapp, s.phone_2_wa_url),
+            (s.phone_3, "Phone 3", s.get_phone_3_type_display(), s.phone_3_whatsapp, s.phone_3_wa_url),
+        ]
+        return ctx
+
+
 class SupplierDeleteView(LoginRequiredMixin, DeleteView):
     model = Supplier
     template_name = "inventory/supplier_confirm_delete.html"

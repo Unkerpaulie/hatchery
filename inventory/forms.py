@@ -14,20 +14,40 @@ _SELECT = {"class": "form-control"}
 
 # ---- Supplier --------------------------------------------------------------
 
+_CHECKBOX  = {"class": "form-check-input"}
+_SELECT_SM = {"class": "form-control form-control-sm"}
+
 class SupplierForm(forms.ModelForm):
     class Meta:
         model = Supplier
-        fields = ["business_name", "contact_name", "phone", "email", "address"]
+        fields = [
+            "business_name", "contact_name", "website",
+            "phone_1", "phone_1_type", "phone_1_whatsapp",
+            "phone_2", "phone_2_type", "phone_2_whatsapp",
+            "phone_3", "phone_3_type", "phone_3_whatsapp",
+            "email", "address", "notes",
+        ]
         widgets = {
-            "business_name": forms.TextInput(attrs=_TEXT),
-            "contact_name":  forms.TextInput(attrs=_TEXT),
-            "phone":         forms.TextInput(attrs=_TEXT),
-            "email":         forms.EmailInput(attrs=_TEXT),
-            "address":       forms.Textarea(attrs=_TEXTAREA),
+            "business_name":   forms.TextInput(attrs=_TEXT),
+            "contact_name":    forms.TextInput(attrs=_TEXT),
+            "website":         forms.URLInput(attrs=_TEXT),
+            "phone_1":         forms.TextInput(attrs=_TEXT),
+            "phone_1_type":    forms.Select(attrs=_SELECT_SM),
+            "phone_1_whatsapp": forms.CheckboxInput(attrs=_CHECKBOX),
+            "phone_2":         forms.TextInput(attrs=_TEXT),
+            "phone_2_type":    forms.Select(attrs=_SELECT_SM),
+            "phone_2_whatsapp": forms.CheckboxInput(attrs=_CHECKBOX),
+            "phone_3":         forms.TextInput(attrs=_TEXT),
+            "phone_3_type":    forms.Select(attrs=_SELECT_SM),
+            "phone_3_whatsapp": forms.CheckboxInput(attrs=_CHECKBOX),
+            "email":           forms.EmailInput(attrs=_TEXT),
+            "address":         forms.Textarea(attrs=_TEXTAREA),
+            "notes":           forms.Textarea(attrs=_TEXTAREA),
         }
         labels = {
             "business_name": "Business Name",
             "contact_name":  "Contact Person",
+            "website":       "Website",
         }
 
 

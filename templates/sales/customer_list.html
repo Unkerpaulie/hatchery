@@ -31,7 +31,7 @@
                 {% for customer in customers %}
                     <tr>
                         <td>{{ customer.name }}</td>
-                        <td>{{ customer.phone|default:"—" }}</td>
+                        <td>{{ customer.phone_1|default:"—" }}</td>
                         <td>{{ customer.email|default:"—" }}</td>
                         <td>{{ customer.address|default:"—" }}</td>
                         <td class="text-center">

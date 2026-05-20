@@ -7,7 +7,7 @@
 
     <span class="d-none d-sm-inline-block font-weight-bold text-gray-800"
           style="font-size: 1.5rem;">
-        Rosa's Eggsellent Poultry Farm
+        ROSA Eggsellent Poultry Farm
     </span>
 
     <ul class="navbar-nav ml-auto">
@@ -19,7 +19,7 @@
                 <span class="mr-2 d-none d-lg-inline text-gray-600 small">
                     {{ request.user.get_username|default:"Guest" }}
                 </span>
-                <i class="fas fa-user-circle fa-2x text-gray-400"></i>
+                <img src="{% static 'img/Rosa_logo.jpg' %}" alt="Rosa's Logo" class="img-profile rounded-circle">
             </a>
             <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
                 <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">

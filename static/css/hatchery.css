@@ -18,6 +18,14 @@
     height: 100vh;
     overflow-y: auto;
     z-index: 900;
+    background-color: #3A1B09 !important;
+    background-image: none !important;
+}
+
+/* Egg icon: rotated and warm amber */
+.sidebar-brand-icon .fa-egg {
+    transform: rotate(210deg);
+    color: #DBAB7A;
 }
 
 /* Compensate for the fixed sidebar so content isn't hidden beneath it.
@@ -38,6 +46,14 @@
     body.sidebar-toggled #wrapper #content-wrapper {
         margin-left: 6.5rem;
     }
+}
+
+/* ── Main page background ───────────────────────────────────────────────────
+   SB Admin 2 defaults body to #f8f9fc (cool grey). Override with a warm
+   off-white that complements the dark brown sidebar.                         */
+
+body {
+    background-color: #FBF7F2 !important;
 }
 
 /* ── Sticky topbar ─────────────────────────────────────────────────────────

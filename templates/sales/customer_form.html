@@ -10,7 +10,7 @@
 
 <div class="card shadow mb-4">
     <div class="card-body">
-        <form method="post" novalidate>
+        <form method="post" novalidate autocomplete="off">
             {% csrf_token %}
 
             {# ── Name & Email ─────────────────────────────────────────── #}
@@ -90,10 +90,12 @@
             </div>
 
             <hr>
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save mr-1"></i> Save
-            </button>
-            <a href="{% url 'sales:customer_list' %}" class="btn btn-secondary ml-2">Cancel</a>
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save mr-1"></i> Save
+                </button>
+                <a href="{% url 'sales:customer_list' %}" class="btn btn-danger ml-2">Cancel</a>
+            </div>
         </form>
     </div>
 </div>

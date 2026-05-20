@@ -18,7 +18,7 @@
         </h6>
     </div>
     <div class="card-body">
-        <form method="post" novalidate>
+        <form method="post" novalidate autocomplete="off">
             {% csrf_token %}
             <div class="form-group">
                 <label class="font-weight-bold">Date</label>
@@ -38,11 +38,13 @@
                 <div class="alert alert-danger">{{ form.non_field_errors }}</div>
             {% endif %}
             <hr>
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save mr-1"></i> Save Changes
-            </button>
-            <a href="{% url 'inventory:batch_detail' hatch.batch_id %}"
-               class="btn btn-secondary ml-2">Cancel</a>
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save mr-1"></i> Save Changes
+                </button>
+                <a href="{% url 'inventory:batch_detail' hatch.batch_id %}"
+                   class="btn btn-danger ml-2">Cancel</a>
+            </div>
         </form>
     </div>
 </div>

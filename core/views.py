@@ -1,4 +1,4 @@
-"""Core views: dashboard landing page and auth endpoints wiring.
+"""Core views: dashboard landing page, auth endpoints, and shared view mixins.
 
 The dashboard aggregates read-only summary data from the inventory and sales
 apps. Cross-app imports are intentional here — core is the one place that
@@ -11,6 +11,29 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+
+
+class AuditMixin:
+    """View mixin that stamps ``created_by`` and ``updated_by`` on any model
+    that inherits from ``AuditedModel`` before the form saves.
+
+    Place this before ``LoginRequiredMixin`` and the generic view base in the
+    inheritance list so Python's MRO calls this ``form_valid`` after the
+    concrete view's own ``form_valid`` (which sets domain-specific instance
+    fields) but before ``CreateView``/``UpdateView``'s ``form_valid`` (which
+    calls ``form.save()``).  That ordering guarantees the audit fields are
+    written to the instance before the INSERT or UPDATE hits the database.
+
+    ``created_by`` is only set when the instance has no pk yet (new record).
+    ``updated_by`` is set on every save so it always reflects the most recent
+    actor.
+    """
+
+    def form_valid(self, form):
+        if not form.instance.pk:
+            form.instance.created_by = self.request.user
+        form.instance.updated_by = self.request.user
+        return super().form_valid(form)
 from django.db.models import DecimalField, F, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone

@@ -14,6 +14,7 @@ from django.views.generic import (
     CreateView, DeleteView, DetailView, ListView, UpdateView,
 )
 
+from core.views import AuditMixin
 from sales.models import Adjustment, SaleLine
 
 from .forms import BatchForm, ExpenseForm, HatchForm, SupplierForm
@@ -30,7 +31,7 @@ class SupplierListView(LoginRequiredMixin, ListView):
     context_object_name = "suppliers"
 
 
-class SupplierCreateView(LoginRequiredMixin, CreateView):
+class SupplierCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     model = Supplier
     form_class = SupplierForm
     template_name = "inventory/supplier_form.html"
@@ -41,7 +42,7 @@ class SupplierCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class SupplierUpdateView(LoginRequiredMixin, UpdateView):
+class SupplierUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
     model = Supplier
     form_class = SupplierForm
     template_name = "inventory/supplier_form.html"
@@ -97,7 +98,7 @@ class BatchListView(LoginRequiredMixin, ListView):
         return Batch.objects.with_inventory().select_related("supplier")
 
 
-class BatchCreateView(LoginRequiredMixin, CreateView):
+class BatchCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     model = Batch
     form_class = BatchForm
     template_name = "inventory/batch_form.html"
@@ -135,7 +136,7 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
         return ctx
 
 
-class BatchUpdateView(LoginRequiredMixin, UpdateView):
+class BatchUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
     model = Batch
     form_class = BatchForm
     template_name = "inventory/batch_form.html"
@@ -183,7 +184,7 @@ class BatchBeginIncubationView(LoginRequiredMixin, View):
     def post(self, request, pk):
         batch = get_object_or_404(Batch, pk=pk)
         try:
-            batch.begin_incubation()
+            batch.begin_incubation(updated_by=request.user)
             messages.success(request, "Incubation started.")
         except Exception as e:
             messages.error(request, str(e))
@@ -196,7 +197,7 @@ class BatchCompleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         batch = get_object_or_404(Batch, pk=pk)
         try:
-            batch.complete()
+            batch.complete(updated_by=request.user)
             messages.success(request, "Batch marked as complete.")
         except Exception as e:
             messages.error(request, str(e))
@@ -207,7 +208,7 @@ class BatchCompleteView(LoginRequiredMixin, View):
 # Hatch record views
 # ---------------------------------------------------------------------------
 
-class HatchCreateView(LoginRequiredMixin, CreateView):
+class HatchCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     """Create a hatch record; submitted from the batch detail page."""
 
     model = Hatch
@@ -237,7 +238,7 @@ class HatchCreateView(LoginRequiredMixin, CreateView):
         return reverse("inventory:batch_detail", kwargs={"pk": self.kwargs["batch_pk"]})
 
 
-class HatchUpdateView(LoginRequiredMixin, UpdateView):
+class HatchUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
     model = Hatch
     form_class = HatchForm
     template_name = "inventory/hatch_form.html"
@@ -277,7 +278,7 @@ class ExpenseListView(LoginRequiredMixin, ListView):
     context_object_name = "expenses"
 
 
-class ExpenseCreateView(LoginRequiredMixin, CreateView):
+class ExpenseCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     model = Expense
     form_class = ExpenseForm
     template_name = "inventory/expense_form.html"
@@ -288,7 +289,7 @@ class ExpenseCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class ExpenseUpdateView(LoginRequiredMixin, UpdateView):
+class ExpenseUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
     model = Expense
     form_class = ExpenseForm
     template_name = "inventory/expense_form.html"

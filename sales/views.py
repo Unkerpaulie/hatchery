@@ -9,6 +9,8 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+
+from core.views import AuditMixin
 from django.db.models import DecimalField, F, IntegerField, OuterRef, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect
@@ -32,7 +34,7 @@ class CustomerListView(LoginRequiredMixin, ListView):
     context_object_name = "customers"
 
 
-class CustomerCreateView(LoginRequiredMixin, CreateView):
+class CustomerCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     model = Customer
     form_class = CustomerForm
     template_name = "sales/customer_form.html"
@@ -71,7 +73,7 @@ class CustomerDetailView(LoginRequiredMixin, DetailView):
         return ctx
 
 
-class CustomerUpdateView(LoginRequiredMixin, UpdateView):
+class CustomerUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
     model = Customer
     form_class = CustomerForm
     template_name = "sales/customer_form.html"
@@ -112,7 +114,7 @@ class SaleListView(LoginRequiredMixin, ListView):
         return _sale_list_queryset()
 
 
-class SaleCreateView(LoginRequiredMixin, CreateView):
+class SaleCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     model = Sale
     form_class = SaleForm
     template_name = "sales/sale_form.html"
@@ -177,7 +179,7 @@ class SaleDetailView(LoginRequiredMixin, DetailView):
 # Sale line views
 # ---------------------------------------------------------------------------
 
-class SaleLineCreateView(LoginRequiredMixin, CreateView):
+class SaleLineCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     model = SaleLine
     form_class = SaleLineForm
 
@@ -268,7 +270,8 @@ class SaleCloseView(LoginRequiredMixin, View):
             return redirect("sales:sale_detail", pk=pk)
 
         sale.status = Sale.Status.CLOSED
-        sale.save(update_fields=["status", "updated_at"])
+        sale.updated_by = request.user
+        sale.save(update_fields=["status", "updated_at", "updated_by"])
         messages.success(request, "Sale closed — inventory has been committed.")
         return redirect("sales:sale_detail", pk=pk)
 
@@ -282,7 +285,8 @@ class SaleCancelView(LoginRequiredMixin, View):
             messages.error(request, "Only pending sales can be cancelled.")
             return redirect("sales:sale_detail", pk=pk)
         sale.status = Sale.Status.CANCELLED
-        sale.save(update_fields=["status", "updated_at"])
+        sale.updated_by = request.user
+        sale.save(update_fields=["status", "updated_at", "updated_by"])
         messages.success(request, "Sale cancelled.")
         return redirect("sales:sale_detail", pk=pk)
 
@@ -299,7 +303,7 @@ class AdjustmentListView(LoginRequiredMixin, ListView):
         return Adjustment.objects.select_related("batch__supplier")
 
 
-class AdjustmentCreateView(LoginRequiredMixin, CreateView):
+class AdjustmentCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     model = Adjustment
     form_class = AdjustmentForm
     template_name = "sales/adjustment_form.html"

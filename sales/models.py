@@ -14,10 +14,10 @@ from django.db.models import F, Sum
 from django.utils import timezone
 from django.utils.functional import cached_property
 
-from core.models import Party
+from core.models import AuditedModel, Party
 
 
-class Customer(Party):
+class Customer(Party, AuditedModel):
     """End buyer of chicks. Per project rules, customer records are never
     deleted from the UI; ``Sale.customer`` uses ``PROTECT`` so accidental
     deletion through the ORM or admin is also blocked.
@@ -32,7 +32,7 @@ class Customer(Party):
         return self.name
 
 
-class Sale(models.Model):
+class Sale(AuditedModel):
     """A sale event for a single customer on a single date. Composed of one
     or more SaleLines so chicks from multiple batches can be sold together.
 
@@ -70,7 +70,7 @@ class Sale(models.Model):
         return agg or Decimal("0")
 
 
-class SaleLine(models.Model):
+class SaleLine(AuditedModel):
     """One line in a sale: a quantity drawn from a specific batch at a
     specific unit price.
 
@@ -129,7 +129,7 @@ class SaleLine(models.Model):
             })
 
 
-class Adjustment(models.Model):
+class Adjustment(AuditedModel):
     """Non-sale removal from inventory (personal use, gifts, mortality, etc.).
     Created from the Sales section per the PRD clarification.
     """

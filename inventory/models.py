@@ -15,10 +15,10 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.functional import cached_property
 
-from core.models import Party
+from core.models import AuditedModel, Party
 
 
-class Supplier(Party):
+class Supplier(Party, AuditedModel):
     """Egg supplier. ``business_name`` is the primary identifier; the
     contact person is captured separately because Party.name does not apply.
     """
@@ -80,7 +80,7 @@ class BatchQuerySet(models.QuerySet):
         )
 
 
-class Batch(models.Model):
+class Batch(AuditedModel):
     class Status(models.TextChoices):
         READY = "ready", "Ready"
         INCUBATING = "incubating", "Incubating"
@@ -114,20 +114,29 @@ class Batch(models.Model):
 
     # ---- state transitions -------------------------------------------------
 
-    def begin_incubation(self, when=None):
-        """Move the batch from READY to INCUBATING and record the start date."""
+    def begin_incubation(self, when=None, updated_by=None):
+        """Move the batch from READY to INCUBATING and record the start date.
+
+        ``updated_by`` should be the ``request.user`` from the calling view so
+        the state transition is attributed to the acting user.
+        """
         if self.status != self.Status.READY:
             raise ValidationError("Only batches in 'ready' status can begin incubation.")
         self.incubation_start_date = when or timezone.localdate()
         self.status = self.Status.INCUBATING
-        self.save(update_fields=["incubation_start_date", "status", "updated_at"])
+        self.updated_by = updated_by
+        self.save(update_fields=["incubation_start_date", "status", "updated_at", "updated_by"])
 
-    def complete(self):
-        """Mark the batch as DONE. Failed count is implicit (quantity \u2212 hatched)."""
+    def complete(self, updated_by=None):
+        """Mark the batch as DONE. Failed count is implicit (quantity − hatched).
+
+        ``updated_by`` should be the ``request.user`` from the calling view.
+        """
         if self.status != self.Status.INCUBATING:
             raise ValidationError("Only batches in 'incubating' status can be completed.")
         self.status = self.Status.DONE
-        self.save(update_fields=["status", "updated_at"])
+        self.updated_by = updated_by
+        self.save(update_fields=["status", "updated_at", "updated_by"])
 
     # ---- single-instance computed properties ---------------------------------
     #
@@ -175,7 +184,7 @@ class Batch(models.Model):
         return self.revenue - self.total_cost
 
 
-class Hatch(models.Model):
+class Hatch(AuditedModel):
     """A daily hatch record on a batch. Quantities aggregate per day in the UI."""
 
     batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name="hatches")
@@ -199,7 +208,7 @@ class Hatch(models.Model):
             )
 
 
-class Expense(models.Model):
+class Expense(AuditedModel):
     """An operating expense not tied to a specific batch (feed, electricity,
     supplies, labour, etc.). Batch egg-purchase costs are captured on
     ``Batch.total_cost``; this model covers all other running costs so the

@@ -1,11 +1,53 @@
 """Core shared models.
 
 Houses the abstract ``Party`` base used by inventory.Supplier and sales.Customer
-to share contact-detail fields (rules.md §3 — shared logic centralized only
-when reuse is proven; the PRD calls for this explicitly).
+to share contact-detail fields, and the abstract ``AuditedModel`` base that
+tracks which user created and last updated every significant record.
+(rules.md §3 — shared logic centralized only when reuse is proven.)
 """
 
+from django.conf import settings
 from django.db import models
+
+
+class AuditedModel(models.Model):
+    """Abstract base that stamps who created and who last updated a record.
+
+    ``created_by`` is set once at creation and never overwritten.
+    ``updated_by`` is refreshed on every save via ``AuditMixin`` in views, and
+    also updated explicitly by model methods that call ``save()`` directly
+    (e.g. ``Batch.begin_incubation``).
+
+    Both fields use ``SET_NULL`` so that deleting a user account does not
+    cascade-delete every record they ever touched — we lose the attribution
+    but preserve the business data, which is the correct tradeoff.
+
+    The ``related_name`` uses Django's abstract-model template syntax
+    ``%(app_label)s_%(class)s_*`` so each concrete subclass gets a unique
+    reverse accessor without any naming collisions.
+    """
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name="%(app_label)s_%(class)s_created",
+        verbose_name="Created by",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name="%(app_label)s_%(class)s_updated",
+        verbose_name="Last updated by",
+    )
+
+    class Meta:
+        abstract = True
 
 
 class Party(models.Model):

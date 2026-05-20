@@ -13,6 +13,7 @@ class HatchInline(admin.TabularInline):
 class SupplierAdmin(admin.ModelAdmin):
     list_display = ("business_name", "contact_name", "phone_1", "email")
     search_fields = ("business_name", "contact_name", "email")
+    readonly_fields = ("created_by", "updated_by", "created_at", "updated_at")
 
 
 @admin.register(Batch)
@@ -20,7 +21,7 @@ class BatchAdmin(admin.ModelAdmin):
     list_display = ("__str__", "supplier", "breed", "purchase_date", "quantity", "status")
     list_filter = ("status",)
     search_fields = ("supplier__business_name", "breed")
-    readonly_fields = ("incubation_start_date", "status", "created_at", "updated_at")
+    readonly_fields = ("incubation_start_date", "status", "created_by", "updated_by", "created_at", "updated_at")
     inlines = [HatchInline]
 
 
@@ -28,7 +29,7 @@ class BatchAdmin(admin.ModelAdmin):
 class HatchAdmin(admin.ModelAdmin):
     list_display = ("batch", "date", "quantity")
     list_filter = ("date",)
-    readonly_fields = ("created_at",)
+    readonly_fields = ("created_by", "updated_by", "created_at")
 
 
 @admin.register(Expense)
@@ -36,4 +37,4 @@ class ExpenseAdmin(admin.ModelAdmin):
     list_display = ("date", "category", "description", "amount")
     list_filter = ("category",)
     search_fields = ("description",)
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("created_by", "updated_by", "created_at", "updated_at")

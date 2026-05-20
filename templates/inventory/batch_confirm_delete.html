@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Delete Batch #{{ batch.pk }} · Hatchery{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Delete Batch #{{ batch.pk }}</h1>
+    <a href="{% url 'inventory:batch_detail' batch.pk %}" class="btn btn-sm btn-secondary shadow-sm">
+        <i class="fas fa-arrow-left fa-sm"></i> Back
+    </a>
+</div>
+
+<div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle mr-2"></i>
+    <strong>Warning — this action cannot be undone.</strong>
+    Deleting this batch will permanently remove the batch record and every record linked to it,
+    as listed below.
+</div>
+
+{# ── Batch summary ────────────────────────────────────────────────────────── #}
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-danger">Batch Being Deleted</h6>
+    </div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-4">Batch</dt>
+            <dd class="col-sm-8">{{ batch }}</dd>
+            <dt class="col-sm-4">Supplier</dt>
+            <dd class="col-sm-8">{{ batch.supplier|default:"—" }}</dd>
+            {% if batch.breed %}
+            <dt class="col-sm-4">Breed / Type</dt>
+            <dd class="col-sm-8">{{ batch.breed }}</dd>
+            {% endif %}
+            <dt class="col-sm-4">Purchase Date</dt>
+            <dd class="col-sm-8">{{ batch.purchase_date }}</dd>
+            <dt class="col-sm-4">Eggs</dt>
+            <dd class="col-sm-8">{{ batch.quantity }}</dd>
+            <dt class="col-sm-4">Total Cost</dt>
+            <dd class="col-sm-8">${{ batch.total_cost|floatformat:2 }}</dd>
+        </dl>
+    </div>
+</div>
+
+{# ── Hatch records ────────────────────────────────────────────────────────── #}
+{% if hatches %}
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+            Hatch Records That Will Be Deleted ({{ hatches|length }})
+        </h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm mb-0">
+                <thead><tr><th>Date</th><th class="text-right">Quantity</th></tr></thead>
+                <tbody>
+                {% for h in hatches %}
+                <tr><td>{{ h.date }}</td><td class="text-right">{{ h.quantity }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── Sale lines ───────────────────────────────────────────────────────────── #}
+{% if sale_lines %}
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+            Sale Line Items That Will Be Deleted ({{ sale_lines|length }})
+        </h6>
+    </div>
+    <p class="text-muted small px-3 pt-2 mb-0">
+        The parent sale records themselves are <strong>not</strong> deleted — only the
+        line items referencing this batch are removed.
+    </p>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Sale Date</th>
+                        <th>Customer</th>
+                        <th>Sale Status</th>
+                        <th class="text-right">Qty</th>
+                        <th class="text-right">Unit Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for line in sale_lines %}
+                <tr>
+                    <td>{{ line.sale.date }}</td>
+                    <td>{{ line.sale.customer }}</td>
+                    <td>
+                        {% if line.sale.status == "pending" %}<span class="badge badge-warning">Pending</span>
+                        {% elif line.sale.status == "closed" %}<span class="badge badge-success">Closed</span>
+                        {% else %}<span class="badge badge-secondary">Cancelled</span>{% endif %}
+                    </td>
+                    <td class="text-right">{{ line.quantity }}</td>
+                    <td class="text-right">${{ line.unit_price|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── Adjustments ──────────────────────────────────────────────────────────── #}
+{% if adjustments %}
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">
+            Inventory Adjustments That Will Be Deleted ({{ adjustments|length }})
+        </h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm mb-0">
+                <thead><tr><th>Date</th><th class="text-right">Qty</th><th>Reason</th></tr></thead>
+                <tbody>
+                {% for adj in adjustments %}
+                <tr>
+                    <td>{{ adj.date }}</td>
+                    <td class="text-right">{{ adj.quantity }}</td>
+                    <td>{{ adj.reason }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if not hatches and not sale_lines and not adjustments %}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle mr-1"></i>
+    No hatch records, sale lines, or adjustments are linked to this batch. Only the batch itself will be removed.
+</div>
+{% endif %}
+
+{# ── Confirm / cancel ─────────────────────────────────────────────────────── #}
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash mr-1"></i> Yes, Delete Everything
+                </button>
+                <a href="{% url 'inventory:batch_detail' batch.pk %}" class="btn btn-secondary ml-2">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -21,6 +21,8 @@ urlpatterns = [
     path("batches/",                    views.BatchListView.as_view(),             name="batch_list"),
     path("batches/new/",                views.BatchCreateView.as_view(),           name="batch_create"),
     path("batches/<int:pk>/",           views.BatchDetailView.as_view(),           name="batch_detail"),
+    path("batches/<int:pk>/edit/",          views.BatchUpdateView.as_view(),           name="batch_update"),
+    path("batches/<int:pk>/delete/",        views.BatchDeleteView.as_view(),           name="batch_delete"),
     path("batches/<int:pk>/begin-incubation/",
                                         views.BatchBeginIncubationView.as_view(),  name="batch_begin_incubation"),
     path("batches/<int:pk>/complete/",  views.BatchCompleteView.as_view(),         name="batch_complete"),

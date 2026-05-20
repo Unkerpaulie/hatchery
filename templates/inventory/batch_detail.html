@@ -15,9 +15,17 @@
         {% elif batch.status == 'incubating' %}<span class="badge badge-warning ml-2">Incubating</span>
         {% else %}<span class="badge badge-success ml-2">Done</span>{% endif %}
     </h1>
-    <a href="{% url 'inventory:batch_list' %}" class="btn btn-sm btn-secondary shadow-sm">
-        <i class="fas fa-arrow-left fa-sm"></i> All Batches
-    </a>
+    <div>
+        <a href="{% url 'inventory:batch_update' batch.pk %}" class="btn btn-sm btn-info shadow-sm">
+            <i class="fas fa-edit fa-sm"></i> Edit
+        </a>
+        <a href="{% url 'inventory:batch_delete' batch.pk %}" class="btn btn-sm btn-danger shadow-sm ml-2">
+            <i class="fas fa-trash fa-sm"></i> Delete
+        </a>
+        <a href="{% url 'inventory:batch_list' %}" class="btn btn-sm btn-secondary shadow-sm ml-2">
+            <i class="fas fa-arrow-left fa-sm"></i> All Batches
+        </a>
+    </div>
 </div>
 
 {# ── Batch info card ──────────────────────────────────────────────────────── #}
@@ -29,6 +37,10 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-5">Supplier</dt>
                     <dd class="col-sm-7">{{ batch.supplier|default:"—" }}</dd>
+                    {% if batch.breed %}
+                    <dt class="col-sm-5">Breed / Type</dt>
+                    <dd class="col-sm-7">{{ batch.breed }}</dd>
+                    {% endif %}
                     <dt class="col-sm-5">Purchase Date</dt>
                     <dd class="col-sm-7">{{ batch.purchase_date }}</dd>
                     <dt class="col-sm-5">Egg Quantity</dt>
@@ -40,6 +52,11 @@
                     <dd class="col-sm-7">{{ batch.incubation_start_date }}</dd>
                     {% endif %}
                 </dl>
+                {% if batch.notes %}
+                <hr class="my-3">
+                <div class="text-xs font-weight-bold text-gray-500 text-uppercase mb-1">Notes</div>
+                <div class="text-muted small">{{ batch.notes|linebreaksbr }}</div>
+                {% endif %}
             </div>
         </div>
     </div>

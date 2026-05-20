@@ -56,16 +56,19 @@ class SupplierForm(forms.ModelForm):
 class BatchForm(forms.ModelForm):
     class Meta:
         model = Batch
-        fields = ["supplier", "purchase_date", "quantity", "total_cost"]
+        fields = ["supplier", "purchase_date", "quantity", "total_cost", "breed", "notes"]
         widgets = {
-            "supplier":     forms.Select(attrs=_SELECT),
+            "supplier":      forms.Select(attrs=_SELECT),
             "purchase_date": forms.DateInput(attrs=_DATE),
-            "quantity":     forms.NumberInput(attrs=_TEXT),
-            "total_cost":   forms.NumberInput(attrs={**_TEXT, "step": "0.01"}),
+            "quantity":      forms.NumberInput(attrs=_TEXT),
+            "total_cost":    forms.NumberInput(attrs={**_TEXT, "step": "0.01"}),
+            "breed":         forms.TextInput(attrs=_TEXT),
+            "notes":         forms.Textarea(attrs=_TEXTAREA),
         }
         labels = {
             "total_cost": "Total Cost ($)",
             "quantity":   "Egg Quantity",
+            "breed":      "Breed / Type",
         }
 
     def __init__(self, *args, **kwargs):

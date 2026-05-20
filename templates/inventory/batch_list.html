@@ -28,7 +28,7 @@
                         <th class="text-right">Hatched</th>
                         <th class="text-right">Available</th>
                         <th class="text-right">Cost</th>
-                        <th class="text-center" style="width:80px;">Detail</th>
+                        <th class="text-center" style="width:120px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -54,6 +54,14 @@
                             <a href="{% url 'inventory:batch_detail' batch.pk %}"
                                class="btn btn-sm btn-primary" title="View">
                                 <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'inventory:batch_update' batch.pk %}"
+                               class="btn btn-sm btn-info ml-1" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'inventory:batch_delete' batch.pk %}"
+                               class="btn btn-sm btn-danger ml-1" title="Delete">
+                                <i class="fas fa-trash"></i>
                             </a>
                         </td>
                     </tr>

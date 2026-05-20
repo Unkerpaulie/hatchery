@@ -17,9 +17,9 @@ class SupplierAdmin(admin.ModelAdmin):
 
 @admin.register(Batch)
 class BatchAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "supplier", "purchase_date", "quantity", "status")
+    list_display = ("__str__", "supplier", "breed", "purchase_date", "quantity", "status")
     list_filter = ("status",)
-    search_fields = ("supplier__business_name",)
+    search_fields = ("supplier__business_name", "breed")
     readonly_fields = ("incubation_start_date", "status", "created_at", "updated_at")
     inlines = [HatchInline]
 

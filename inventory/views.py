@@ -14,7 +14,7 @@ from django.views.generic import (
     CreateView, DeleteView, DetailView, ListView, UpdateView,
 )
 
-from sales.models import SaleLine
+from sales.models import Adjustment, SaleLine
 
 from .forms import BatchForm, ExpenseForm, HatchForm, SupplierForm
 from .models import Batch, Expense, Hatch, Supplier
@@ -133,6 +133,48 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
                 .order_by("sale__date")
             )
         return ctx
+
+
+class BatchUpdateView(LoginRequiredMixin, UpdateView):
+    model = Batch
+    form_class = BatchForm
+    template_name = "inventory/batch_form.html"
+    context_object_name = "batch"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Batch updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("inventory:batch_detail", kwargs={"pk": self.object.pk})
+
+
+class BatchDeleteView(LoginRequiredMixin, DeleteView):
+    model = Batch
+    template_name = "inventory/batch_confirm_delete.html"
+    context_object_name = "batch"
+    success_url = reverse_lazy("inventory:batch_list")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        batch = self.object
+        ctx["hatches"] = batch.hatches.order_by("date")
+        ctx["sale_lines"] = (
+            SaleLine.objects
+            .filter(batch=batch)
+            .select_related("sale__customer")
+            .order_by("sale__date")
+        )
+        ctx["adjustments"] = (
+            Adjustment.objects
+            .filter(batch=batch)
+            .order_by("date")
+        )
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, "Batch and all associated records deleted.")
+        return super().form_valid(form)
 
 
 class BatchBeginIncubationView(LoginRequiredMixin, View):

@@ -31,7 +31,17 @@
                 {% for customer in customers %}
                     <tr>
                         <td>{{ customer.name }}</td>
-                        <td>{{ customer.phone_1|default:"—" }}</td>
+                        <td>
+                            {% if customer.phone_1 %}
+                                {{ customer.phone_1 }}
+                                {% if customer.phone_1_whatsapp %}
+                                <a href="{{ customer.phone_1_wa_url }}" target="_blank" rel="noopener noreferrer"
+                                   class="ml-1 text-success" title="WhatsApp {{ customer.phone_1 }}">
+                                    <i class="fab fa-whatsapp"></i>
+                                </a>
+                                {% endif %}
+                            {% else %}—{% endif %}
+                        </td>
                         <td>{{ customer.email|default:"—" }}</td>
                         <td>{{ customer.address|default:"—" }}</td>
                         <td class="text-center">

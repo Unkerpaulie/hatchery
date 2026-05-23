@@ -216,10 +216,13 @@ class Expense(AuditedModel):
     """
 
     class Category(models.TextChoices):
-        FEED        = "feed",        "Feed"
         ELECTRICITY = "electricity", "Electricity"
-        SUPPLIES    = "supplies",    "Supplies"
+        EQUIPMENT   = "equipment",   "Equipment"
+        FEED        = "feed",        "Feed"
         LABOR       = "labor",       "Labor"
+        MEDICINE    = "medicine",    "Medicine"
+        PHONE       = "phone",       "Phone"
+        SUPPLIES    = "supplies",    "Supplies"
         OTHER       = "other",       "Other"
 
     date        = models.DateField(default=timezone.localdate)

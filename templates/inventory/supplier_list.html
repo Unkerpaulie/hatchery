@@ -20,6 +20,7 @@
                         <th>Contact Person</th>
                         <th>Phone</th>
                         <th>Email</th>
+                        <th>Website</th>
                         <th class="text-center" style="width:160px;">Actions</th>
                     </tr>
                 </thead>
@@ -28,8 +29,26 @@
                     <tr>
                         <td>{{ supplier.business_name }}</td>
                         <td>{{ supplier.contact_name|default:"—" }}</td>
-                        <td>{{ supplier.phone_1|default:"—" }}</td>
+                        <td>
+                            {% if supplier.phone_1 %}
+                                {{ supplier.phone_1 }}
+                                {% if supplier.phone_1_whatsapp %}
+                                <a href="{{ supplier.phone_1_wa_url }}" target="_blank" rel="noopener noreferrer"
+                                   class="ml-1 text-success" title="WhatsApp {{ supplier.phone_1 }}">
+                                    <i class="fab fa-whatsapp"></i>
+                                </a>
+                                {% endif %}
+                            {% else %}—{% endif %}
+                        </td>
                         <td>{{ supplier.email|default:"—" }}</td>
+                        <td>
+                            {% if supplier.website %}
+                            <a href="{{ supplier.website }}" target="_blank" rel="noopener noreferrer"
+                               title="{{ supplier.website }}">
+                                {{ supplier.website }} <i class="fas fa-external-link-alt fa-xs ml-1"></i>
+                            </a>
+                            {% else %}—{% endif %}
+                        </td>
                         <td class="text-center">
                             <a href="{% url 'inventory:supplier_detail' supplier.pk %}"
                                class="btn btn-sm btn-primary" title="View">
@@ -49,7 +68,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="5" class="text-center text-muted">No suppliers yet.</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted">No suppliers yet.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -89,7 +108,7 @@
 <script src="{% static 'vendor/datatables/jquery.dataTables.min.js' %}"></script>
 <script src="{% static 'vendor/datatables/dataTables.bootstrap4.min.js' %}"></script>
 <script>
-    $('#suppliersTable').DataTable({ order: [[0, 'asc']], columnDefs: [{ orderable: false, targets: 4 }] });  // col 4 = Actions
+    $('#suppliersTable').DataTable({ order: [[0, 'asc']], columnDefs: [{ orderable: false, targets: 5 }] });  // col 5 = Actions
     $('#deleteModal').on('show.bs.modal', function (e) {
         var btn = $(e.relatedTarget);
         $(this).find('#deleteModalForm').attr('action', btn.data('url'));

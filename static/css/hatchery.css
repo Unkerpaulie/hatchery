@@ -18,8 +18,8 @@
     height: 100vh;
     overflow-y: auto;
     z-index: 900;
-    background-color: #3A1B09 !important;
-    background-image: none !important;
+    background-color: #0693e3 !important;
+    background-image: linear-gradient(180deg, #0693e3 0%, #00d084 100%) !important;
 }
 
 /* Egg icon: rotated and warm amber */
@@ -53,8 +53,25 @@
    off-white that complements the dark brown sidebar.                         */
 
 body {
-    background-color: #FBF7F2 !important;
+    background-color: #ffffff !important;
+    color: #4a4b5c !important;
 }
+
+/* ── Main content area background ──────────────────────────────────────────
+   The body is pure white; the content wrapper gets the warm off-white so
+   it's visually distinct from the white modal/card surfaces behind it.     */
+
+#content-wrapper {
+    background-color: #F5F0EA !important;
+}
+
+/* ── Warning colour — darker for readability ────────────────────────────── */
+
+.text-warning { color: #b8860b !important; }
+.badge-warning { background-color: #c49a00 !important; color: #fff !important; }
+.bg-warning    { background-color: #c49a00 !important; }
+.btn-warning   { background-color: #c49a00 !important; border-color: #b08a00 !important; }
+.alert-warning { background-color: #fdf3d0 !important; border-color: #c49a00 !important; color: #7a5f00 !important; }
 
 /* ── Sticky topbar ─────────────────────────────────────────────────────────
    position:sticky keeps the topbar in the normal document flow (unlike

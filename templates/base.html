@@ -9,6 +9,18 @@
     <link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css">
     <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
           rel="stylesheet">
+    <style>
+        /* Self-hosted so the font loads with the page — no network round-trip,
+           no fallback-swap flash. font-display:block keeps the text invisible
+           during the very brief load window rather than showing Georgia first. */
+        @font-face {
+            font-family: 'Cormorant Garamond';
+            font-style: italic;
+            font-weight: 700;
+            font-display: block;
+            src: url('{% static "fonts/CormorantGaramond-BoldItalic.ttf" %}') format('truetype');
+        }
+    </style>
     <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet">
     <link href="{% static 'css/hatchery.css' %}" rel="stylesheet">
 

@@ -73,6 +73,18 @@ body {
 .btn-warning   { background-color: #c49a00 !important; border-color: #b08a00 !important; }
 .alert-warning { background-color: #fdf3d0 !important; border-color: #c49a00 !important; color: #7a5f00 !important; }
 
+/* ── Brand name — Cormorant Garamond Italic, used in sidebar + invoice ──────
+   Applies the tall, elegant serif italic to the business name wherever it
+   appears.  font-size and colour are left to the context that uses this class
+   so it composes without overrides.                                           */
+
+.brand-name {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
 /* ── Sticky topbar ─────────────────────────────────────────────────────────
    position:sticky keeps the topbar in the normal document flow (unlike
    position:fixed) so no extra padding or margin compensation is needed on

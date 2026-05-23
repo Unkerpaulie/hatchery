@@ -32,6 +32,11 @@
             </button>
         </form>
         {% endif %}
+        {% if sale.status == "closed" %}
+        <a href="{% url 'sales:sale_invoice' sale.pk %}" class="btn btn-sm btn-primary shadow-sm mr-2">
+            <i class="fas fa-file-pdf fa-sm"></i> Download Invoice
+        </a>
+        {% endif %}
         <a href="{% url 'sales:sale_list' %}" class="btn btn-sm btn-secondary shadow-sm">
             <i class="fas fa-arrow-left fa-sm"></i> All Sales
         </a>

@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponse
 
 from core.views import AuditMixin
 from django.db.models import DecimalField, F, IntegerField, OuterRef, Subquery, Sum, Value
@@ -289,6 +290,26 @@ class SaleCancelView(LoginRequiredMixin, View):
         sale.save(update_fields=["status", "updated_at", "updated_by"])
         messages.success(request, "Sale cancelled.")
         return redirect("sales:sale_detail", pk=pk)
+
+
+class SaleInvoiceView(LoginRequiredMixin, View):
+    """GET: generate and download a PDF invoice for a closed sale."""
+
+    def get(self, request, pk):
+        sale = get_object_or_404(
+            Sale.objects.select_related("customer").prefetch_related("lines__batch"),
+            pk=pk,
+        )
+        if sale.status != Sale.Status.CLOSED:
+            messages.error(request, "Invoices can only be generated for closed sales.")
+            return redirect("sales:sale_detail", pk=pk)
+
+        from .invoice import generate_invoice
+        pdf_bytes = generate_invoice(sale)
+
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="invoice-{sale.pk}.pdf"'
+        return response
 
 
 # ---------------------------------------------------------------------------

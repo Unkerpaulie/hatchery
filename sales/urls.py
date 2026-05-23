@@ -19,6 +19,7 @@ urlpatterns = [
     path("<int:pk>/",                views.SaleDetailView.as_view(),  name="sale_detail"),
     path("<int:pk>/close/",          views.SaleCloseView.as_view(),   name="sale_close"),
     path("<int:pk>/cancel/",         views.SaleCancelView.as_view(),  name="sale_cancel"),
+    path("<int:pk>/invoice/",        views.SaleInvoiceView.as_view(), name="sale_invoice"),
 
     # Sale lines (operated from the sale detail page)
     path("<int:sale_pk>/lines/add/", views.SaleLineCreateView.as_view(), name="saleline_create"),

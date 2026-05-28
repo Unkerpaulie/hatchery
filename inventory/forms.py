@@ -16,6 +16,14 @@ _SELECT = {"class": "form-control"}
 
 _CHECKBOX  = {"class": "form-check-input"}
 _SELECT_SM = {"class": "form-control form-control-sm"}
+_PHONE     = {**_TEXT, "data-phone-input": "1"}
+
+
+def _strip_phone(value: str) -> str:
+    """Return only the digit characters from *value* (strips E.164 '+' prefix
+    and any formatting characters sent by intl-tel-input on submit)."""
+    return "".join(c for c in (value or "") if c.isdigit())
+
 
 class SupplierForm(forms.ModelForm):
     class Meta:
@@ -31,13 +39,13 @@ class SupplierForm(forms.ModelForm):
             "business_name":   forms.TextInput(attrs=_TEXT),
             "contact_name":    forms.TextInput(attrs=_TEXT),
             "website":         forms.URLInput(attrs=_TEXT),
-            "phone_1":         forms.TextInput(attrs=_TEXT),
+            "phone_1":         forms.TextInput(attrs=_PHONE),
             "phone_1_type":    forms.Select(attrs=_SELECT_SM),
             "phone_1_whatsapp": forms.CheckboxInput(attrs=_CHECKBOX),
-            "phone_2":         forms.TextInput(attrs=_TEXT),
+            "phone_2":         forms.TextInput(attrs=_PHONE),
             "phone_2_type":    forms.Select(attrs=_SELECT_SM),
             "phone_2_whatsapp": forms.CheckboxInput(attrs=_CHECKBOX),
-            "phone_3":         forms.TextInput(attrs=_TEXT),
+            "phone_3":         forms.TextInput(attrs=_PHONE),
             "phone_3_type":    forms.Select(attrs=_SELECT_SM),
             "phone_3_whatsapp": forms.CheckboxInput(attrs=_CHECKBOX),
             "email":           forms.EmailInput(attrs=_TEXT),
@@ -49,6 +57,26 @@ class SupplierForm(forms.ModelForm):
             "contact_name":  "Contact Person",
             "website":       "Website",
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Prepend '+' to digit-only stored phone values so intl-tel-input
+        # can resolve the country code when rendering the edit form.
+        for field in ("phone_1", "phone_2", "phone_3"):
+            val = self.initial.get(field, "")
+            if val and str(val).isdigit():
+                self.initial[field] = f"+{val}"
+
+    # ---- normalise phone fields on every save ------------------------------
+
+    def clean_phone_1(self):
+        return _strip_phone(self.cleaned_data.get("phone_1", ""))
+
+    def clean_phone_2(self):
+        return _strip_phone(self.cleaned_data.get("phone_2", ""))
+
+    def clean_phone_3(self):
+        return _strip_phone(self.cleaned_data.get("phone_3", ""))
 
 
 # ---- Batch -----------------------------------------------------------------

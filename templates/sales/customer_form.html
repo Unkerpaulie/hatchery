@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} Customer · Hatchery{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/css/intlTelInput.css">
+<style>
+    /* Ensure the intl-tel-input wrapper fills its Bootstrap column */
+    .iti { width: 100%; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
     <h1 class="h3 mb-0 text-gray-800">
@@ -99,4 +107,50 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/intlTelInput.min.js"></script>
+<script>
+(function () {
+    'use strict';
+    var UTILS = 'https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/utils.js';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Attach intl-tel-input to every input tagged with data-phone-input.
+        var inputs   = Array.from(document.querySelectorAll('[data-phone-input]'));
+        var instances = inputs.map(function (input) {
+            var iti = window.intlTelInput(input, {
+                initialCountry:    'tt',
+                separateDialCode:  true,
+                preferredCountries: ['tt', 'us', 'gb', 'ca'],
+                utilsScript:       UTILS,
+            });
+
+            // When the form re-renders after a validation error, the phone
+            // field holds raw digits (e.g. "18681234567").  Wait for utils to
+            // load, then set the number with a '+' prefix so the country flag
+            // is resolved correctly.
+            var stored = input.value.trim();
+            if (stored && /^[0-9]+$/.test(stored)) {
+                iti.promise.then(function () { iti.setNumber('+' + stored); });
+            }
+            return iti;
+        });
+
+        // Before submitting, replace each visible input with E.164 digits only.
+        var form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function () {
+                instances.forEach(function (iti, i) {
+                    var e164 = iti.getNumber(); // e.g. "+18681234567"
+                    if (e164) {
+                        inputs[i].value = e164.replace(/\D/g, ''); // "18681234567"
+                    }
+                });
+            });
+        }
+    });
+}());
+</script>
 {% endblock %}

@@ -39,6 +39,21 @@ def _batch_label(obj):
 _CHECKBOX = {"class": "form-check-input"}
 _SELECT_SM = {"class": "form-control form-control-sm"}
 
+# Phone inputs get a data attribute so the JS initializer can find them
+# without relying on id_phone_N naming (which would break with form prefixes).
+_PHONE = {**_TEXT, "data-phone-input": "1"}
+
+
+def _strip_phone(value: str) -> str:
+    """Return only the digit characters from *value*.
+
+    intl-tel-input submits an E.164 string such as ``+18681234567``.
+    This strips the leading ``+`` and any formatting characters, giving
+    us the raw digit string we store in the database.
+    """
+    return "".join(c for c in (value or "") if c.isdigit())
+
+
 class CustomerForm(forms.ModelForm):
     class Meta:
         model = Customer
@@ -51,19 +66,40 @@ class CustomerForm(forms.ModelForm):
         ]
         widgets = {
             "name":            forms.TextInput(attrs=_TEXT),
-            "phone_1":         forms.TextInput(attrs=_TEXT),
+            "phone_1":         forms.TextInput(attrs=_PHONE),
             "phone_1_type":    forms.Select(attrs=_SELECT_SM),
             "phone_1_whatsapp": forms.CheckboxInput(attrs=_CHECKBOX),
-            "phone_2":         forms.TextInput(attrs=_TEXT),
+            "phone_2":         forms.TextInput(attrs=_PHONE),
             "phone_2_type":    forms.Select(attrs=_SELECT_SM),
             "phone_2_whatsapp": forms.CheckboxInput(attrs=_CHECKBOX),
-            "phone_3":         forms.TextInput(attrs=_TEXT),
+            "phone_3":         forms.TextInput(attrs=_PHONE),
             "phone_3_type":    forms.Select(attrs=_SELECT_SM),
             "phone_3_whatsapp": forms.CheckboxInput(attrs=_CHECKBOX),
             "email":           forms.EmailInput(attrs=_TEXT),
             "address":         forms.Textarea(attrs=_TEXTAREA),
             "notes":           forms.Textarea(attrs=_TEXTAREA),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # When rendering an edit form, stored values are digit-only strings
+        # (e.g. "18681234567"). Prepend '+' so intl-tel-input can parse the
+        # country code and show the correct flag on page load.
+        for field in ("phone_1", "phone_2", "phone_3"):
+            val = self.initial.get(field, "")
+            if val and str(val).isdigit():
+                self.initial[field] = f"+{val}"
+
+    # ---- normalise phone fields on every save ------------------------------
+
+    def clean_phone_1(self):
+        return _strip_phone(self.cleaned_data.get("phone_1", ""))
+
+    def clean_phone_2(self):
+        return _strip_phone(self.cleaned_data.get("phone_2", ""))
+
+    def clean_phone_3(self):
+        return _strip_phone(self.cleaned_data.get("phone_3", ""))
 
 
 # ---- Sale header -----------------------------------------------------------

@@ -2,6 +2,13 @@
 {% load static %}
 {% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} Supplier · Hatchery{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/css/intlTelInput.css">
+<style>
+    .iti { width: 100%; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
     <h1 class="h3 mb-0 text-gray-800">
@@ -111,4 +118,41 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/intlTelInput.min.js"></script>
+<script>
+(function () {
+    'use strict';
+    var UTILS = 'https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/utils.js';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var inputs    = Array.from(document.querySelectorAll('[data-phone-input]'));
+        var instances = inputs.map(function (input) {
+            var iti = window.intlTelInput(input, {
+                initialCountry:    'tt',
+                separateDialCode:  true,
+                preferredCountries: ['tt', 'us', 'gb', 'ca'],
+                utilsScript:       UTILS,
+            });
+            var stored = input.value.trim();
+            if (stored && /^[0-9]+$/.test(stored)) {
+                iti.promise.then(function () { iti.setNumber('+' + stored); });
+            }
+            return iti;
+        });
+
+        var form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function () {
+                instances.forEach(function (iti, i) {
+                    var e164 = iti.getNumber();
+                    if (e164) { inputs[i].value = e164.replace(/\D/g, ''); }
+                });
+            });
+        }
+    });
+}());
+</script>
 {% endblock %}

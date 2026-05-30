@@ -46,7 +46,7 @@ PAYMENT_TERMS  = (
     "agreed in writing. We accept the following forms of payment: "
     "Bank Transfer and Cash payment."
 )
-VAT_RATE = Decimal("0.125")  # 12.5 %
+VAT_RATE = Decimal("0.00")  # 0.00 % (formerly 12.5 % / 0.125)
 
 LOGO_PATH = str(settings.BASE_DIR / "static" / "img" / "Rosa_logo.jpg")
 
@@ -250,8 +250,11 @@ def generate_invoice(sale) -> bytes:
                  "",
                  Paragraph("SUBTOTAL",    S["tot_lbl"]),
                  Paragraph(f"${subtotal:,.2f}", S["tot_val"])])
+    
+    # Render dynamic label showing the actual percentage (e.g. VAT (0.0%))
+    pct_formatted = f"{float(VAT_RATE * 100):.1f}%" if VAT_RATE > 0 else "0%"
     rows.append(["", "",
-                 Paragraph("VAT (12.5%)", S["tot_lbl"]),
+                 Paragraph(f"VAT ({pct_formatted})", S["tot_lbl"]),
                  Paragraph(f"${vat:,.2f}",     S["tot_val"])])
     rows.append(["", "",
                  Paragraph("TOTAL DUE",  S["grand_lbl"]),

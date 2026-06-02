@@ -92,10 +92,10 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Session — expire after 2 hours of inactivity.
+# Session — expire after 30 minutes of inactivity.
 # SESSION_SAVE_EVERY_REQUEST resets the expiry window on every HTTP request so
 # the clock measures inactivity, not total session age.
-SESSION_COOKIE_AGE = 7200          # seconds (2 hours)
+SESSION_COOKIE_AGE = 1800          # seconds (30 minutes)
 SESSION_SAVE_EVERY_REQUEST = True
 
 

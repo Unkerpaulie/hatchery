@@ -94,20 +94,31 @@ class BatchQuerySet(models.QuerySet):
             )
             .annotate(
                 # chicks_available: sellable chick inventory for this batch.
-                # Only HATCHED batches expose chicks for sale; RAISING/GROWN are
-                # committed to meat production and excluded from chick inventory.
+                # HATCHED: full chick pool minus deductions.
+                # INCUBATING: only early-hatched chicks (chick_pool = hatched_count
+                #   for egg batches, so the formula is automatically correct).
+                # RAISING/GROWN: committed to meat — excluded from chick inventory.
                 chicks_available=Case(
-                    When(status="hatched", then=F("chick_pool") - F("sold_count") - F("adjusted_count")),
+                    When(status__in=["hatched", "incubating"], then=F("chick_pool") - F("sold_count") - F("adjusted_count")),
                     default=zero_int,
                     output_field=IntegerField(),
                 ),
             )
             .annotate(
+                # eggs_remaining: eggs still unhatched during INCUBATING phase.
+                # Zero for all other statuses.
+                eggs_remaining=Case(
+                    When(status="incubating", then=F("initial_quantity") - F("hatched_count")),
+                    default=zero_int,
+                    output_field=IntegerField(),
+                ),
                 # birds_count: the meaningful live quantity at every status stage.
-                # NEW/INCUBATING → initial_quantity (eggs still in process).
+                # NEW       → initial_quantity (eggs purchased, none hatched yet).
+                # INCUBATING → eggs_remaining (unhatched eggs; hatched_count shown separately).
                 # HATCHED/RAISING/GROWN → remaining birds (chick pool minus deductions).
                 birds_count=Case(
-                    When(status__in=["new", "incubating"], then=F("initial_quantity")),
+                    When(status="new", then=F("initial_quantity")),
+                    When(status="incubating", then=F("initial_quantity") - F("hatched_count")),
                     default=F("chick_pool") - F("sold_count") - F("adjusted_count"),
                     output_field=IntegerField(),
                 ),
@@ -305,20 +316,36 @@ class Batch(AuditedModel):
 
     @cached_property
     def chicks_available(self) -> int:
-        """Chicks available for sale. Zero for non-HATCHED batches."""
-        if self.status != self.Status.HATCHED:
+        """Chicks available for sale.
+
+        HATCHED: full chick pool minus deductions.
+        INCUBATING: only early-hatched chicks (chick_pool == hatched_count for
+            egg batches, so the formula is automatically correct).
+        All other statuses: zero.
+        """
+        if self.status not in (self.Status.HATCHED, self.Status.INCUBATING):
             return 0
         return self.chick_pool - self.sold_count - self.adjusted_count
+
+    @cached_property
+    def eggs_remaining(self) -> int:
+        """Eggs still unhatched during INCUBATING phase. Zero for all other statuses."""
+        if self.status != self.Status.INCUBATING:
+            return 0
+        return self.initial_quantity - self.hatched_count
 
     @cached_property
     def birds_count(self) -> int:
         """Meaningful live quantity at every status stage (mirrors with_inventory annotation).
 
-        NEW/INCUBATING → initial_quantity (eggs still in process).
+        NEW       → initial_quantity (eggs purchased, none hatched yet).
+        INCUBATING → unhatched eggs remaining (hatched_count shown separately in UI).
         HATCHED/RAISING/GROWN → remaining birds after sales and adjustments.
         """
-        if self.status in (self.Status.NEW, self.Status.INCUBATING):
+        if self.status == self.Status.NEW:
             return self.initial_quantity
+        if self.status == self.Status.INCUBATING:
+            return self.initial_quantity - self.hatched_count
         return self.chick_pool - self.sold_count - self.adjusted_count
 
     @cached_property

@@ -68,13 +68,22 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         )
 
         # ── KPI: chicks available ────────────────────────────────────────
-        # Sum chicks_available across all HATCHED batches (the annotation
-        # already returns 0 for RAISING/GROWN/NEW/INCUBATING, so summing
-        # the whole table is equivalent and avoids a redundant filter).
+        # Includes HATCHED batches (full pool) and INCUBATING batches that
+        # have partial hatch records. The annotation returns 0 for all other
+        # statuses, so summing the whole table is safe and filter-free.
         zero = Value(0, output_field=DecimalField(max_digits=12, decimal_places=2))
         ctx["chicks_available"] = (
             Batch.objects.with_inventory()
             .aggregate(s=Coalesce(Sum("chicks_available"), Value(0)))["s"]
+        )
+
+        # ── KPI: grown chickens available for meat sale ───────────────────
+        # birds_count for GROWN batches = chick_pool - sold - adjusted,
+        # i.e. the remaining birds that haven't been sold as meat yet.
+        ctx["grown_available"] = (
+            Batch.objects.with_inventory()
+            .filter(status=Batch.Status.GROWN)
+            .aggregate(s=Coalesce(Sum("birds_count"), Value(0)))["s"]
         )
 
         # ── KPI: total costs (batch egg costs + operating expenses) ──────

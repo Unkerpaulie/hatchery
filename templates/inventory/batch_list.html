@@ -51,17 +51,16 @@
                         <td>{{ batch.supplier|default:"—" }}</td>
                         <td>{{ batch.purchase_date }}</td>
                         <td class="text-right">
-                            {{ batch.birds_count }}&nbsp;
                             {% if batch.status == 'new' %}
-                                <span data-toggle="tooltip" title="Eggs purchased — awaiting incubation" style="cursor:default;">🥚</span>
+                                {{ batch.birds_count }}&nbsp;<span data-toggle="tooltip" title="Eggs purchased — awaiting incubation" style="cursor:default;">🥚</span>
                             {% elif batch.status == 'incubating' %}
-                                <span data-toggle="tooltip" title="Eggs currently incubating" style="cursor:default;">🐣</span>
+                                {{ batch.birds_count }}&nbsp;<span data-toggle="tooltip" title="Eggs currently incubating" style="cursor:default;">🐣</span>{% if batch.hatched_count %}, {{ batch.hatched_count }}&nbsp;<span data-toggle="tooltip" title="Chicks hatched so far — available for sale" style="cursor:default;">🐤</span>{% endif %}
                             {% elif batch.status == 'hatched' %}
-                                <span data-toggle="tooltip" title="Chicks available for sale" style="cursor:default;">🐤</span>
+                                {{ batch.birds_count }}&nbsp;<span data-toggle="tooltip" title="Chicks available for sale" style="cursor:default;">🐤</span>
                             {% elif batch.status == 'raising' %}
-                                <span data-toggle="tooltip" title="Chickens being raised — not available for sale" style="cursor:default;">🐓</span>
+                                {{ batch.birds_count }}&nbsp;<span data-toggle="tooltip" title="Chickens being raised — not available for sale" style="cursor:default;">🐓</span>
                             {% else %}
-                                <span data-toggle="tooltip" title="Fully grown — ready for meat sale" style="cursor:default;">🐔</span>
+                                {{ batch.birds_count }}&nbsp;<span data-toggle="tooltip" title="Fully grown — ready for meat sale" style="cursor:default;">🐔</span>
                             {% endif %}
                         </td>
                         <td class="text-right">{{ batch.current_age_display }}</td>

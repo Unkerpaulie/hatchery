@@ -24,10 +24,10 @@
                         <th>Status</th>
                         <th>Supplier</th>
                         <th>Purchased</th>
-                        <th class="text-right">Eggs</th>
-                        <th class="text-right">Hatched</th>
-                        <th class="text-right">Available</th>
+                        <th class="text-right">Qty</th>
+                        <th class="text-right">Age</th>
                         <th class="text-right">Cost</th>
+                        <th class="text-right">Sales</th>
                         <th class="text-center" style="width:120px;">Actions</th>
                     </tr>
                 </thead>
@@ -36,20 +36,39 @@
                     <tr>
                         <td>{{ batch.pk }}</td>
                         <td>
-                            {% if batch.status == 'ready' %}
-                                <span class="badge badge-secondary">Ready</span>
+                            {% if batch.status == 'new' %}
+                                <span class="badge badge-secondary">New</span>
                             {% elif batch.status == 'incubating' %}
                                 <span class="badge badge-warning">Incubating</span>
+                            {% elif batch.status == 'hatched' %}
+                                <span class="badge badge-success">Hatched</span>
+                            {% elif batch.status == 'raising' %}
+                                <span class="badge badge-info">Raising</span>
                             {% else %}
-                                <span class="badge badge-success">Done</span>
+                                <span class="badge badge-primary">Grown</span>
                             {% endif %}
                         </td>
                         <td>{{ batch.supplier|default:"—" }}</td>
                         <td>{{ batch.purchase_date }}</td>
-                        <td class="text-right">{{ batch.quantity }}</td>
-                        <td class="text-right">{{ batch.hatched_count }}</td>
-                        <td class="text-right">{{ batch.chicks_available }}</td>
+                        <td class="text-right">
+                            {{ batch.birds_count }}&nbsp;
+                            {% if batch.status == 'new' %}
+                                <span data-toggle="tooltip" title="Eggs purchased — awaiting incubation" style="cursor:default;">🥚</span>
+                            {% elif batch.status == 'incubating' %}
+                                <span data-toggle="tooltip" title="Eggs currently incubating" style="cursor:default;">🐣</span>
+                            {% elif batch.status == 'hatched' %}
+                                <span data-toggle="tooltip" title="Chicks available for sale" style="cursor:default;">🐤</span>
+                            {% elif batch.status == 'raising' %}
+                                <span data-toggle="tooltip" title="Chickens being raised — not available for sale" style="cursor:default;">🐓</span>
+                            {% else %}
+                                <span data-toggle="tooltip" title="Fully grown — ready for meat sale" style="cursor:default;">🐔</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">{{ batch.current_age_display }}</td>
                         <td class="text-right">${{ batch.total_cost|floatformat:2 }}</td>
+                        <td class="text-right">
+                            {% if batch.revenue %}<span class="text-success">${{ batch.revenue|floatformat:2 }}</span>{% else %}—{% endif %}
+                        </td>
                         <td class="text-center">
                             <a href="{% url 'inventory:batch_detail' batch.pk %}"
                                class="btn btn-sm btn-primary" title="View">
@@ -83,5 +102,6 @@
         order: [[0, 'desc']],
         columnDefs: [{ orderable: false, targets: 8 }]
     });
+    $('[data-toggle="tooltip"]').tooltip();
 </script>
 {% endblock %}

@@ -84,26 +84,45 @@ class SupplierForm(forms.ModelForm):
 class BatchForm(forms.ModelForm):
     class Meta:
         model = Batch
-        fields = ["supplier", "purchase_date", "quantity", "total_cost", "breed", "notes"]
+        fields = [
+            "purchased_as", "supplier", "purchase_date",
+            "initial_quantity", "age_at_purchase", "total_cost", "breed", "notes",
+        ]
         widgets = {
-            "supplier":      forms.Select(attrs=_SELECT),
-            "purchase_date": forms.DateInput(attrs=_DATE),
-            "quantity":      forms.NumberInput(attrs=_TEXT),
-            "total_cost":    forms.NumberInput(attrs={**_TEXT, "step": "0.01"}),
-            "breed":         forms.TextInput(attrs=_TEXT),
-            "notes":         forms.Textarea(attrs=_TEXTAREA),
+            "purchased_as":    forms.RadioSelect(attrs={"class": "form-check-input"}),
+            "supplier":        forms.Select(attrs=_SELECT),
+            "purchase_date":   forms.DateInput(attrs=_DATE),
+            "initial_quantity": forms.NumberInput(attrs=_TEXT),
+            "age_at_purchase": forms.NumberInput(attrs={**_TEXT, "min": "0"}),
+            "total_cost":      forms.NumberInput(attrs={**_TEXT, "step": "0.01"}),
+            "breed":           forms.TextInput(attrs=_TEXT),
+            "notes":           forms.Textarea(attrs=_TEXTAREA),
         }
         labels = {
-            "total_cost": "Total Cost ($)",
-            "quantity":   "Egg Quantity",
-            "breed":      "Breed / Type",
+            "purchased_as":    "Purchased As",
+            "total_cost":      "Total Cost ($)",
+            "initial_quantity": "Quantity",
+            "age_at_purchase": "Age at Purchase (days)",
+            "breed":           "Breed / Type",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Supplier is optional on a batch.
         self.fields["supplier"].required = False
         self.fields["supplier"].empty_label = "— No supplier —"
+        self.fields["age_at_purchase"].required = False
+        # On edit, lock the purchase-origin fields — they are immutable.
+        if self.instance.pk:
+            self.fields["purchased_as"].disabled = True
+            self.fields["age_at_purchase"].disabled = True
+
+    def clean(self):
+        cleaned = super().clean()
+        purchased_as = cleaned.get("purchased_as")
+        age = cleaned.get("age_at_purchase")
+        if purchased_as == Batch.PurchasedAs.CHICKS and age is None:
+            self.add_error("age_at_purchase", "Age at purchase is required for chick batches.")
+        return cleaned
 
 
 # ---- Hatch record ----------------------------------------------------------

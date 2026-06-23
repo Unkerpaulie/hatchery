@@ -33,8 +33,8 @@
             {% endif %}
             <dt class="col-sm-4">Purchase Date</dt>
             <dd class="col-sm-8">{{ batch.purchase_date }}</dd>
-            <dt class="col-sm-4">Eggs</dt>
-            <dd class="col-sm-8">{{ batch.quantity }}</dd>
+            <dt class="col-sm-4">{{ batch.get_purchased_as_display }} Quantity</dt>
+            <dd class="col-sm-8">{{ batch.initial_quantity }}</dd>
             <dt class="col-sm-4">Total Cost</dt>
             <dd class="col-sm-8">${{ batch.total_cost|floatformat:2 }}</dd>
         </dl>

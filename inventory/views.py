@@ -20,6 +20,9 @@ from sales.models import Adjustment, SaleLine
 from .forms import BatchForm, ExpenseForm, HatchForm, SupplierForm
 from .models import Batch, Expense, Hatch, Supplier
 
+# Statuses where chick inventory is tracked and sale lines are shown.
+_CHICK_SALE_STATUSES = (Batch.Status.HATCHED, Batch.Status.RAISING, Batch.Status.GROWN)
+
 
 # ---------------------------------------------------------------------------
 # Supplier views
@@ -122,12 +125,17 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
         from django.utils import timezone
         ctx = super().get_context_data(**kwargs)
         batch = self.object
-        ctx["hatch_form"] = HatchForm(batch=batch)
         ctx["today"] = timezone.localdate()
-        # Pre-compute values templates can't derive without arithmetic filters.
-        ctx["eggs_remaining"] = batch.quantity - batch.hatched_count
+
+        # Hatch form and egg-specific stats only apply to egg batches in INCUBATING.
+        if batch.purchased_as == Batch.PurchasedAs.EGGS and batch.status == Batch.Status.INCUBATING:
+            ctx["hatch_form"] = HatchForm(batch=batch)
+            ctx["eggs_remaining"] = batch.initial_quantity - batch.hatched_count
+
         ctx["success_rate_pct"] = round(batch.success_rate * 100, 1)
-        if batch.status == Batch.Status.DONE:
+
+        # Show sale history once chicks have entered the market (HATCHED or beyond).
+        if batch.status in _CHICK_SALE_STATUSES:
             ctx["sale_lines"] = (
                 SaleLine.objects.filter(batch=batch)
                 .select_related("sale__customer")
@@ -179,7 +187,7 @@ class BatchDeleteView(LoginRequiredMixin, DeleteView):
 
 
 class BatchBeginIncubationView(LoginRequiredMixin, View):
-    """POST-only action: move batch from READY to INCUBATING."""
+    """POST-only action: move egg batch from NEW to INCUBATING."""
 
     def post(self, request, pk):
         batch = get_object_or_404(Batch, pk=pk)
@@ -191,14 +199,44 @@ class BatchBeginIncubationView(LoginRequiredMixin, View):
         return redirect("inventory:batch_detail", pk=pk)
 
 
-class BatchCompleteView(LoginRequiredMixin, View):
-    """POST-only action: mark batch as DONE."""
+class BatchMarkHatchedView(LoginRequiredMixin, View):
+    """POST-only action: move egg batch from INCUBATING to HATCHED."""
 
     def post(self, request, pk):
         batch = get_object_or_404(Batch, pk=pk)
         try:
-            batch.complete(updated_by=request.user)
-            messages.success(request, "Batch marked as complete.")
+            batch.mark_hatched(updated_by=request.user)
+            messages.success(request, "Batch marked as hatched. Age tracking begins today.")
+        except Exception as e:
+            messages.error(request, str(e))
+        return redirect("inventory:batch_detail", pk=pk)
+
+
+class BatchBeginRaisingView(LoginRequiredMixin, View):
+    """POST-only action: move batch from HATCHED to RAISING.
+
+    All remaining chicks are committed to growing; the batch leaves
+    chick-sale inventory.
+    """
+
+    def post(self, request, pk):
+        batch = get_object_or_404(Batch, pk=pk)
+        try:
+            batch.begin_raising(updated_by=request.user)
+            messages.success(request, "Batch moved to raising. Chicks are no longer available for sale.")
+        except Exception as e:
+            messages.error(request, str(e))
+        return redirect("inventory:batch_detail", pk=pk)
+
+
+class BatchMarkGrownView(LoginRequiredMixin, View):
+    """POST-only action: move batch from RAISING to GROWN."""
+
+    def post(self, request, pk):
+        batch = get_object_or_404(Batch, pk=pk)
+        try:
+            batch.mark_grown(updated_by=request.user)
+            messages.success(request, "Batch marked as grown and ready for meat sale.")
         except Exception as e:
             messages.error(request, str(e))
         return redirect("inventory:batch_detail", pk=pk)

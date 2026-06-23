@@ -11,9 +11,11 @@
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
     <h1 class="h3 mb-0 text-gray-800">
         Batch #{{ batch.pk }}
-        {% if batch.status == 'ready' %}<span class="badge badge-secondary ml-2">Ready</span>
+        {% if batch.status == 'new' %}<span class="badge badge-secondary ml-2">New</span>
         {% elif batch.status == 'incubating' %}<span class="badge badge-warning ml-2">Incubating</span>
-        {% else %}<span class="badge badge-success ml-2">Done</span>{% endif %}
+        {% elif batch.status == 'hatched' %}<span class="badge badge-success ml-2">Hatched</span>
+        {% elif batch.status == 'raising' %}<span class="badge badge-info ml-2">Raising</span>
+        {% else %}<span class="badge badge-primary ml-2">Grown</span>{% endif %}
     </h1>
     <div>
         <a href="{% url 'inventory:batch_update' batch.pk %}" class="btn btn-sm btn-info shadow-sm">
@@ -35,6 +37,8 @@
             <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Batch Details</h6></div>
             <div class="card-body">
                 <dl class="row mb-0">
+                    <dt class="col-sm-5">Purchased As</dt>
+                    <dd class="col-sm-7">{{ batch.get_purchased_as_display }}</dd>
                     <dt class="col-sm-5">Supplier</dt>
                     <dd class="col-sm-7">{{ batch.supplier|default:"—" }}</dd>
                     {% if batch.breed %}
@@ -43,13 +47,25 @@
                     {% endif %}
                     <dt class="col-sm-5">Purchase Date</dt>
                     <dd class="col-sm-7">{{ batch.purchase_date }}</dd>
-                    <dt class="col-sm-5">Egg Quantity</dt>
-                    <dd class="col-sm-7">{{ batch.quantity }}</dd>
+                    <dt class="col-sm-5">
+                        {% if batch.purchased_as == 'eggs' %}Egg Quantity{% else %}Chick Quantity{% endif %}
+                    </dt>
+                    <dd class="col-sm-7">{{ batch.initial_quantity }}</dd>
+                    {% if batch.purchased_as == 'chicks' %}
+                    <dt class="col-sm-5">Age at Purchase</dt>
+                    <dd class="col-sm-7">{{ batch.age_at_purchase }} day{{ batch.age_at_purchase|pluralize }}</dd>
+                    {% endif %}
                     <dt class="col-sm-5">Total Cost</dt>
                     <dd class="col-sm-7">${{ batch.total_cost|floatformat:2 }}</dd>
                     {% if batch.incubation_start_date %}
                     <dt class="col-sm-5">Incubation Started</dt>
                     <dd class="col-sm-7">{{ batch.incubation_start_date }}</dd>
+                    {% endif %}
+                    {% if batch.day_1_date %}
+                    <dt class="col-sm-5">Day 1 Date</dt>
+                    <dd class="col-sm-7">{{ batch.day_1_date }}</dd>
+                    <dt class="col-sm-5">Current Age</dt>
+                    <dd class="col-sm-7"><strong>{{ batch.current_age_display }}</strong></dd>
                     {% endif %}
                 </dl>
                 {% if batch.notes %}
@@ -61,12 +77,12 @@
         </div>
     </div>
 
-    {# ── READY: stat + action ─────────────────────────────────────────────── #}
-    {% if batch.status == 'ready' %}
+    {# ── NEW: awaiting incubation ─────────────────────────────────────────── #}
+    {% if batch.status == 'new' %}
     <div class="col-lg-6">
         <div class="card shadow mb-4 border-left-secondary">
             <div class="card-body text-center py-4">
-                <p class="text-gray-600 mb-3">This batch has not started incubation yet.</p>
+                <p class="text-gray-600 mb-3">This egg batch has not started incubation yet.</p>
                 <button class="btn btn-primary btn-lg" data-toggle="modal" data-target="#beginIncubationModal">
                     <i class="fas fa-fire-alt mr-1"></i> Begin Incubation
                 </button>
@@ -89,26 +105,80 @@
                         <div class="small text-gray-600">Remaining</div>
                     </div>
                     <div class="col-4">
-                        <div class="h4 font-weight-bold text-success">{{ batch.chicks_available }}</div>
-                        <div class="small text-gray-600">Available</div>
+                        <div class="h4 font-weight-bold text-success">{{ batch.hatched_count }}</div>
+                        <div class="small text-gray-600">Hatched So Far</div>
                     </div>
                 </div>
                 <hr class="my-3">
                 <div class="text-center">
-                    <button class="btn btn-success" data-toggle="modal" data-target="#completeModal">
-                        <i class="fas fa-check-circle mr-1"></i> Mark Batch Complete
+                    <button class="btn btn-success" data-toggle="modal" data-target="#markHatchedModal">
+                        <i class="fas fa-check-circle mr-1"></i> Mark as Hatched
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── HATCHED: chicks available for sale ───────────────────────────────── #}
+    {% elif batch.status == 'hatched' %}
+    <div class="col-lg-6">
+        <div class="card shadow mb-4 border-left-success">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="h4 font-weight-bold text-success">{{ batch.chick_pool }}</div>
+                        <div class="small text-gray-600">Total Chicks</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 font-weight-bold text-warning">{{ batch.sold_count }}</div>
+                        <div class="small text-gray-600">Sold</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 font-weight-bold text-primary">{{ batch.chicks_available }}</div>
+                        <div class="small text-gray-600">Available</div>
+                    </div>
+                </div>
+                {% if batch.chicks_available > 0 %}
+                <hr class="my-3">
+                <div class="text-center">
+                    <button class="btn btn-info" data-toggle="modal" data-target="#beginRaisingModal">
+                        <i class="fas fa-seedling mr-1"></i> Move to Raising
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── RAISING ──────────────────────────────────────────────────────────── #}
+    {% elif batch.status == 'raising' %}
+    <div class="col-lg-6">
+        <div class="card shadow mb-4 border-left-info">
+            <div class="card-body text-center py-4">
+                <p class="text-gray-600 mb-2">This batch is being raised for meat production.</p>
+                <p class="h5 font-weight-bold text-info mb-3">Age: {{ batch.current_age_display }}</p>
+                <button class="btn btn-primary" data-toggle="modal" data-target="#markGrownModal">
+                    <i class="fas fa-drumstick-bite mr-1"></i> Mark as Grown
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {# ── GROWN ────────────────────────────────────────────────────────────── #}
+    {% elif batch.status == 'grown' %}
+    <div class="col-lg-6">
+        <div class="card shadow mb-4 border-left-primary">
+            <div class="card-body text-center py-4">
+                <p class="text-gray-600 mb-2">These chickens are fully grown and ready for meat sale.</p>
+                <p class="h5 font-weight-bold text-primary mb-0">Age: {{ batch.current_age_display }}</p>
             </div>
         </div>
     </div>
     {% endif %}
 </div>
 
-{# ── Remaining eggs counter (simple math in template) ─────────────────────── #}
-{% if batch.status == 'incubating' %}
-
-{# ── Add hatch record ─────────────────────────────────────────────────────── #}
+{# ── Add hatch record (only while egg batch is incubating) ───────────────── #}
+{% if batch.purchased_as == 'eggs' and batch.status == 'incubating' %}
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex justify-content-between align-items-center">
         <h6 class="m-0 font-weight-bold text-primary">Add Hatch Record</h6>
@@ -152,7 +222,7 @@
                     <tr>
                         <th>Date</th>
                         <th class="text-right">Quantity</th>
-                        {% if batch.status == 'incubating' %}<th class="text-center" style="width:100px;">Actions</th>{% endif %}
+                        {% if batch.purchased_as == 'eggs' and batch.status == 'incubating' %}<th class="text-center" style="width:100px;">Actions</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -160,7 +230,7 @@
                     <tr>
                         <td>{{ hatch.date }}</td>
                         <td class="text-right">{{ hatch.quantity }}</td>
-                        {% if batch.status == 'incubating' %}
+                        {% if batch.purchased_as == 'eggs' and batch.status == 'incubating' %}
                         <td class="text-center">
                             <a href="{% url 'inventory:hatch_update' hatch.pk %}"
                                class="btn btn-xs btn-info" title="Edit">
@@ -184,19 +254,31 @@
 </div>
 {% endif %}
 
-{# ── DONE: stats + sales summary ─────────────────────────────────────────── #}
-{% if batch.status == 'done' %}
+{# ── HATCHED / RAISING / GROWN: stats + sales summary ────────────────────── #}
+{% if batch.status == 'hatched' or batch.status == 'raising' or batch.status == 'grown' %}
 <div class="row">
+    {% if batch.purchased_as == 'eggs' %}
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-success shadow h-100 py-2">
             <div class="card-body"><div class="row no-gutters align-items-center">
                 <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Success Rate</div>
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Hatch Rate</div>
                     <div class="h5 mb-0 font-weight-bold text-gray-800">{{ success_rate_pct }}%</div>
                 </div><div class="col-auto"><i class="fas fa-percentage fa-2x text-gray-300"></i></div>
             </div></div>
         </div>
     </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body"><div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Eggs Failed</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ batch.failed_count }}</div>
+                </div><div class="col-auto"><i class="fas fa-times-circle fa-2x text-gray-300"></i></div>
+            </div></div>
+        </div>
+    </div>
+    {% endif %}
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-info shadow h-100 py-2">
             <div class="card-body"><div class="row no-gutters align-items-center">
@@ -217,23 +299,24 @@
             </div></div>
         </div>
     </div>
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-warning shadow h-100 py-2">
-            <div class="card-body"><div class="row no-gutters align-items-center">
-                <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Eggs Failed</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ batch.failed_count }}</div>
-                </div><div class="col-auto"><i class="fas fa-times-circle fa-2x text-gray-300"></i></div>
-            </div></div>
-        </div>
-    </div>
 </div>
 
-{# Available chicks #}
+{% if batch.status == 'hatched' %}
 <div class="alert alert-info">
     <i class="fas fa-info-circle mr-1"></i>
     <strong>{{ batch.chicks_available }}</strong> chick{{ batch.chicks_available|pluralize }} currently available for sale from this batch.
 </div>
+{% elif batch.status == 'raising' %}
+<div class="alert alert-warning">
+    <i class="fas fa-seedling mr-1"></i>
+    This batch is in raising — chicks are no longer available for sale. Age: <strong>{{ batch.current_age_display }}</strong>.
+</div>
+{% elif batch.status == 'grown' %}
+<div class="alert alert-primary">
+    <i class="fas fa-drumstick-bite mr-1"></i>
+    These chickens are fully grown (age <strong>{{ batch.current_age_display }}</strong>) and ready for meat sale.
+</div>
+{% endif %}
 
 {# Sales tied to this batch #}
 {% if sale_lines %}
@@ -269,11 +352,11 @@
     </div>
 </div>
 {% endif %}
-{% endif %}{# /done #}
+{% endif %}{# /hatched+raising+grown #}
 
 {# ── Modals ───────────────────────────────────────────────────────────────── #}
 
-{% if batch.status == 'ready' %}
+{% if batch.status == 'new' %}
 <div class="modal fade" id="beginIncubationModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -298,28 +381,28 @@
 {% endif %}
 
 {% if batch.status == 'incubating' %}
-<div class="modal fade" id="completeModal" tabindex="-1" role="dialog">
+<div class="modal fade" id="markHatchedModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Mark Batch Complete</h5>
+                <h5 class="modal-title">Mark Batch as Hatched</h5>
                 <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
             </div>
             <div class="modal-body">
                 {% if batch.failed_count == 0 %}
                     <p><i class="fas fa-check-circle text-success mr-1"></i>
-                    All <strong>{{ batch.quantity }}</strong> eggs were successfully hatched.</p>
+                    All <strong>{{ batch.initial_quantity }}</strong> eggs were successfully hatched.</p>
                 {% else %}
                     <p><i class="fas fa-exclamation-triangle text-warning mr-1"></i>
                     <strong>{{ batch.failed_count }}</strong> egg{{ batch.failed_count|pluralize }} failed to hatch
-                    ({{ batch.hatched_count }} of {{ batch.quantity }} successful).</p>
+                    ({{ batch.hatched_count }} of {{ batch.initial_quantity }} successful).</p>
                 {% endif %}
-                <p class="mb-0">Confirm to mark this batch as <strong>Done</strong>.
+                <p class="mb-0">Today ({{ today }}) will be set as <strong>Day 1</strong> for age tracking.
                 Hatch records will be locked.</p>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
-                <form method="post" action="{% url 'inventory:batch_complete' batch.pk %}">
+                <form method="post" action="{% url 'inventory:batch_mark_hatched' batch.pk %}">
                     {% csrf_token %}
                     <button class="btn btn-success" type="submit">Confirm</button>
                 </form>
@@ -343,6 +426,58 @@
                 <form id="deleteHatchForm" method="post">
                     {% csrf_token %}
                     <button class="btn btn-danger" type="submit">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if batch.status == 'hatched' and batch.chicks_available > 0 %}
+<div class="modal fade" id="beginRaisingModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Move to Raising</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <p>This will move all <strong>{{ batch.chicks_available }}</strong> remaining
+                chick{{ batch.chicks_available|pluralize }} to raising status.</p>
+                <p class="mb-0">They will no longer be available for chick sale. The batch
+                will continue aging until marked as <strong>Grown</strong>.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                <form method="post" action="{% url 'inventory:batch_begin_raising' batch.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-info" type="submit">Confirm — Begin Raising</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if batch.status == 'raising' %}
+<div class="modal fade" id="markGrownModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Mark as Grown</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <p>Confirm that the chickens in Batch #{{ batch.pk }} are fully grown
+                (current age: <strong>{{ batch.current_age_display }}</strong>).</p>
+                <p class="mb-0">The status will change to <strong>Grown</strong> and the
+                chickens will be ready for meat sale.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                <form method="post" action="{% url 'inventory:batch_mark_grown' batch.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-primary" type="submit">Confirm — Mark as Grown</button>
                 </form>
             </div>
         </div>

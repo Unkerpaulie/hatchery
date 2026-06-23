@@ -59,7 +59,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             Batch.objects.with_inventory()
             .filter(status=Batch.Status.INCUBATING)
             .aggregate(
-                total_qty=Coalesce(Sum("quantity"), Value(0)),
+                total_qty=Coalesce(Sum("initial_quantity"), Value(0)),
                 total_hatched=Coalesce(Sum("hatched_count"), Value(0)),
             )
         )
@@ -68,11 +68,14 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         )
 
         # ── KPI: chicks available ────────────────────────────────────────
-        # Only CLOSED sales commit inventory; PENDING/CANCELLED are ignored.
-        total_hatched   = Hatch.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
-        total_sold      = SaleLine.objects.filter(sale__status="closed").aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
-        total_adjusted  = Adjustment.objects.aggregate(s=Coalesce(Sum("quantity"), Value(0)))["s"]
-        ctx["chicks_available"] = total_hatched - total_sold - total_adjusted
+        # Sum chicks_available across all HATCHED batches (the annotation
+        # already returns 0 for RAISING/GROWN/NEW/INCUBATING, so summing
+        # the whole table is equivalent and avoids a redundant filter).
+        zero = Value(0, output_field=DecimalField(max_digits=12, decimal_places=2))
+        ctx["chicks_available"] = (
+            Batch.objects.with_inventory()
+            .aggregate(s=Coalesce(Sum("chicks_available"), Value(0)))["s"]
+        )
 
         # ── KPI: total costs (batch egg costs + operating expenses) ──────
         zero = Value(Decimal("0"), output_field=DecimalField(max_digits=12, decimal_places=2))

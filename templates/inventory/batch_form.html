@@ -13,6 +13,33 @@
     <div class="card-body">
         <form method="post" novalidate autocomplete="off">
             {% csrf_token %}
+
+            {# ── Purchase type (locked on edit) ───────────────────────────── #}
+            <div class="form-group">
+                <label class="font-weight-bold">Purchased As <span class="text-danger">*</span></label>
+                <div class="mt-1">
+                {% for radio in form.purchased_as %}
+                    <div class="form-check form-check-inline">
+                        {{ radio.tag }}
+                        <label class="form-check-label ml-1" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                    </div>
+                {% endfor %}
+                </div>
+                {% if form.purchased_as.errors %}
+                    <div class="invalid-feedback d-block">{{ form.purchased_as.errors|join:", " }}</div>
+                {% endif %}
+            </div>
+
+            {# ── Age at purchase (chick batches only) ─────────────────────── #}
+            <div class="form-group" id="ageAtPurchaseGroup" style="display:none;">
+                <label>Age at Purchase (days) <span class="text-danger">*</span></label>
+                {{ form.age_at_purchase }}
+                <small class="form-text text-muted">How old were the chicks when purchased?</small>
+                {% if form.age_at_purchase.errors %}
+                    <div class="invalid-feedback d-block">{{ form.age_at_purchase.errors|join:", " }}</div>
+                {% endif %}
+            </div>
+
             <div class="form-group">
                 <label>Supplier</label>
                 {{ form.supplier }}
@@ -26,10 +53,10 @@
                     {% endif %}
                 </div>
                 <div class="form-group col-md-6">
-                    <label>Egg Quantity <span class="text-danger">*</span></label>
-                    {{ form.quantity }}
-                    {% if form.quantity.errors %}
-                        <div class="invalid-feedback d-block">{{ form.quantity.errors|join:", " }}</div>
+                    <label id="qtyLabel">Quantity <span class="text-danger">*</span></label>
+                    {{ form.initial_quantity }}
+                    {% if form.initial_quantity.errors %}
+                        <div class="invalid-feedback d-block">{{ form.initial_quantity.errors|join:", " }}</div>
                     {% endif %}
                 </div>
             </div>
@@ -71,4 +98,32 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var radios = document.querySelectorAll('input[name="purchased_as"]');
+    var ageGroup = document.getElementById('ageAtPurchaseGroup');
+    var qtyLabel = document.getElementById('qtyLabel');
+
+    function applyType(val) {
+        var isChicks = (val === 'chicks');
+        ageGroup.style.display = isChicks ? '' : 'none';
+        qtyLabel.innerHTML = (isChicks ? 'Chick Quantity' : 'Egg Quantity') +
+                             ' <span class="text-danger">*</span>';
+    }
+
+    // Apply on load (handles edit page where a value is pre-selected).
+    radios.forEach(function(r) {
+        if (r.checked) applyType(r.value);
+        r.addEventListener('change', function() { applyType(this.value); });
+    });
+
+    {% if form.instance.purchased_as %}
+    // Edit page: apply current value immediately.
+    applyType('{{ form.instance.purchased_as }}');
+    {% endif %}
+}());
+</script>
 {% endblock %}

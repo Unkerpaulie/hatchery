@@ -24,8 +24,10 @@ urlpatterns = [
     path("batches/<int:pk>/edit/",          views.BatchUpdateView.as_view(),           name="batch_update"),
     path("batches/<int:pk>/delete/",        views.BatchDeleteView.as_view(),           name="batch_delete"),
     path("batches/<int:pk>/begin-incubation/",
-                                        views.BatchBeginIncubationView.as_view(),  name="batch_begin_incubation"),
-    path("batches/<int:pk>/complete/",  views.BatchCompleteView.as_view(),         name="batch_complete"),
+                                            views.BatchBeginIncubationView.as_view(), name="batch_begin_incubation"),
+    path("batches/<int:pk>/mark-hatched/",  views.BatchMarkHatchedView.as_view(),     name="batch_mark_hatched"),
+    path("batches/<int:pk>/begin-raising/", views.BatchBeginRaisingView.as_view(),    name="batch_begin_raising"),
+    path("batches/<int:pk>/mark-grown/",    views.BatchMarkGrownView.as_view(),       name="batch_mark_grown"),
 
     # ---- Hatch records ----------------------------------------------------
     path("batches/<int:batch_pk>/hatches/new/",

@@ -5,12 +5,13 @@ chick-inventory math. State transitions (begin incubation, mark complete)
 live on the model itself per rules.md \u00a77.
 """
 
+from datetime import timedelta
 from decimal import Decimal
 
 from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import DecimalField, F, IntegerField, OuterRef, Subquery, Sum
+from django.db.models import Case, DecimalField, F, IntegerField, OuterRef, Subquery, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.functional import cached_property
@@ -40,6 +41,11 @@ class BatchQuerySet(models.QuerySet):
     Uses correlated subqueries (rather than ``annotate(Sum())`` on multiple
     reverse relations) to avoid the classic Django join-multiplication
     bug when summing across more than one related manager.
+
+    Annotation chain (order matters — later annotations reference earlier ones):
+      1. hatched_count, sold_count, adjusted_count, revenue  (raw subquery totals)
+      2. chick_pool   — effective chick supply depending on purchased_as
+      3. chicks_available — pool minus deductions; 0 when status is not HATCHED
     """
 
     def with_inventory(self):
@@ -62,30 +68,79 @@ class BatchQuerySet(models.QuerySet):
             .values("s")
         )
 
-        zero_int = models.Value(0, output_field=IntegerField())
-        zero_money = models.Value(
-            Decimal("0"), output_field=DecimalField(max_digits=12, decimal_places=2)
-        )
+        zero_int   = Value(0, output_field=IntegerField())
+        zero_money = Value(Decimal("0"), output_field=DecimalField(max_digits=12, decimal_places=2))
 
-        return self.annotate(
-            hatched_count=Coalesce(Subquery(_sum_sq(Hatch), output_field=IntegerField()), zero_int),
-            sold_count=Coalesce(Subquery(_sum_sq(SaleLine, extra_filter=closed_filter), output_field=IntegerField()), zero_int),
-            adjusted_count=Coalesce(Subquery(_sum_sq(Adjustment), output_field=IntegerField()), zero_int),
-            revenue=Coalesce(
-                Subquery(revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-                zero_money,
-            ),
-        ).annotate(
-            chicks_available=F("hatched_count") - F("sold_count") - F("adjusted_count"),
+        return (
+            self.annotate(
+                hatched_count=Coalesce(Subquery(_sum_sq(Hatch), output_field=IntegerField()), zero_int),
+                sold_count=Coalesce(Subquery(_sum_sq(SaleLine, extra_filter=closed_filter), output_field=IntegerField()), zero_int),
+                adjusted_count=Coalesce(Subquery(_sum_sq(Adjustment), output_field=IntegerField()), zero_int),
+                revenue=Coalesce(
+                    Subquery(revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
+                    zero_money,
+                ),
+            )
+            .annotate(
+                # chick_pool: total chicks produced/purchased for this batch.
+                # Egg batches: use the sum of actual hatch records (some eggs fail).
+                # Chick batches: use initial_quantity (all chicks arrived on day 1).
+                chick_pool=Case(
+                    When(purchased_as="eggs",   then=F("hatched_count")),
+                    When(purchased_as="chicks", then=F("initial_quantity")),
+                    default=zero_int,
+                    output_field=IntegerField(),
+                ),
+            )
+            .annotate(
+                # chicks_available: sellable chick inventory for this batch.
+                # Only HATCHED batches expose chicks for sale; RAISING/GROWN are
+                # committed to meat production and excluded from chick inventory.
+                chicks_available=Case(
+                    When(status="hatched", then=F("chick_pool") - F("sold_count") - F("adjusted_count")),
+                    default=zero_int,
+                    output_field=IntegerField(),
+                ),
+            )
+            .annotate(
+                # birds_count: the meaningful live quantity at every status stage.
+                # NEW/INCUBATING → initial_quantity (eggs still in process).
+                # HATCHED/RAISING/GROWN → remaining birds (chick pool minus deductions).
+                birds_count=Case(
+                    When(status__in=["new", "incubating"], then=F("initial_quantity")),
+                    default=F("chick_pool") - F("sold_count") - F("adjusted_count"),
+                    output_field=IntegerField(),
+                ),
+            )
         )
 
 
 class Batch(AuditedModel):
-    class Status(models.TextChoices):
-        READY = "ready", "Ready"
-        INCUBATING = "incubating", "Incubating"
-        DONE = "done", "Done"
+    """A purchase batch of eggs or chicks, tracked from acquisition through sale.
 
+    The lifecycle differs by purchase type:
+      eggs   → NEW → INCUBATING → HATCHED → RAISING → GROWN
+      chicks → HATCHED (immediately) → RAISING → GROWN
+
+    ``purchased_as`` is immutable after creation — it preserves the historical
+    origin and governs which pool calculation ``with_inventory()`` uses.
+    ``status`` reflects the current phase. ``day_1_date`` is the anchor for
+    age tracking and is set once: on HATCHED transition for egg batches, or
+    back-calculated from purchase info for chick batches.
+    """
+
+    class Status(models.TextChoices):
+        NEW        = "new",        "New"
+        INCUBATING = "incubating", "Incubating"
+        HATCHED    = "hatched",    "Hatched"
+        RAISING    = "raising",    "Raising"
+        GROWN      = "grown",      "Grown"
+
+    class PurchasedAs(models.TextChoices):
+        EGGS   = "eggs",   "Eggs"
+        CHICKS = "chicks", "Chicks"
+
+    # ---- immutable purchase record -----------------------------------------
     supplier = models.ForeignKey(
         Supplier,
         on_delete=models.SET_NULL,
@@ -93,12 +148,29 @@ class Batch(AuditedModel):
         blank=True,
         related_name="batches",
     )
-    purchase_date = models.DateField()
-    total_cost = models.DecimalField(max_digits=10, decimal_places=2)
-    quantity = models.PositiveIntegerField(help_text="Number of eggs in this batch.")
-    breed = models.CharField(max_length=100, blank=True, help_text="Breed or type of eggs (e.g. Rhode Island Red, Broiler).")
+    purchase_date     = models.DateField()
+    purchased_as      = models.CharField(
+        max_length=6, choices=PurchasedAs.choices, default=PurchasedAs.EGGS,
+        help_text="What was purchased: eggs for incubation, or chicks ready for sale.",
+    )
+    initial_quantity  = models.PositiveIntegerField(
+        help_text="Number of eggs or chicks at the time of purchase. Does not change."
+    )
+    total_cost        = models.DecimalField(max_digits=10, decimal_places=2)
+    age_at_purchase   = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Age of chicks in days at time of purchase. Required for chick batches.",
+    )
+    breed             = models.CharField(max_length=100, blank=True)
+
+    # ---- mutable lifecycle fields ------------------------------------------
+    status                = models.CharField(max_length=16, choices=Status.choices, default=Status.NEW)
     incubation_start_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.READY)
+    day_1_date            = models.DateField(
+        null=True, blank=True,
+        help_text="The anchor date for age tracking (day 1). Set when the batch is "
+                  "first HATCHED; back-calculated for purchased chick batches.",
+    )
     notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -112,43 +184,104 @@ class Batch(AuditedModel):
     def __str__(self):
         return f"Batch #{self.pk} ({self.get_status_display()})"
 
+    # ---- save override -----------------------------------------------------
+
+    def clean(self):
+        """Validate and auto-configure chick batches.
+
+        For chick batches:
+        - age_at_purchase is required.
+        - status is forced to HATCHED here (before save) so that form validation
+          doesn't see a NEW status that was never meant to persist.
+        - day_1_date is back-calculated from purchase_date and age_at_purchase.
+        """
+        if self.purchased_as == self.PurchasedAs.CHICKS:
+            if self.age_at_purchase is None:
+                raise ValidationError(
+                    {"age_at_purchase": "Age at purchase is required for chick batches."}
+                )
+            # Set status early so model-level guards don't fire on a transient default.
+            if self.status in (self.Status.NEW, self.Status.INCUBATING):
+                self.status = self.Status.HATCHED
+            # Always recompute day_1_date so edits to age_at_purchase propagate.
+            if self.purchase_date is not None:
+                age = self.age_at_purchase or 0
+                self.day_1_date = self.purchase_date - timedelta(days=age)
+
+    def save(self, *args, **kwargs):
+        """Ensure clean() side-effects are applied even on direct saves
+        that bypass form validation (e.g. management commands, tests).
+        """
+        if self.purchased_as == self.PurchasedAs.CHICKS:
+            if self.status in (self.Status.NEW, self.Status.INCUBATING):
+                self.status = self.Status.HATCHED
+            if self.purchase_date is not None:
+                age = self.age_at_purchase or 0
+                self.day_1_date = self.purchase_date - timedelta(days=age)
+        super().save(*args, **kwargs)
+
     # ---- state transitions -------------------------------------------------
 
     def begin_incubation(self, when=None, updated_by=None):
-        """Move the batch from READY to INCUBATING and record the start date.
+        """NEW → INCUBATING. Records the start date. Egg batches only.
 
-        ``updated_by`` should be the ``request.user`` from the calling view so
-        the state transition is attributed to the acting user.
+        ``updated_by`` should be ``request.user`` from the calling view.
         """
-        if self.status != self.Status.READY:
-            raise ValidationError("Only batches in 'ready' status can begin incubation.")
+        if self.purchased_as != self.PurchasedAs.EGGS:
+            raise ValidationError("Only egg batches can be incubated.")
+        if self.status != self.Status.NEW:
+            raise ValidationError("Only batches in 'new' status can begin incubation.")
         self.incubation_start_date = when or timezone.localdate()
         self.status = self.Status.INCUBATING
         self.updated_by = updated_by
         self.save(update_fields=["incubation_start_date", "status", "updated_at", "updated_by"])
 
-    def complete(self, updated_by=None):
-        """Mark the batch as DONE. Failed count is implicit (quantity − hatched).
+    def mark_hatched(self, updated_by=None):
+        """INCUBATING → HATCHED. Sets day_1_date to today — day 1 of chick age.
 
-        ``updated_by`` should be the ``request.user`` from the calling view.
+        ``updated_by`` should be ``request.user`` from the calling view.
         """
         if self.status != self.Status.INCUBATING:
-            raise ValidationError("Only batches in 'incubating' status can be completed.")
-        self.status = self.Status.DONE
+            raise ValidationError("Only batches in 'incubating' status can be marked as hatched.")
+        self.status = self.Status.HATCHED
+        self.day_1_date = timezone.localdate()
+        self.updated_by = updated_by
+        self.save(update_fields=["status", "day_1_date", "updated_at", "updated_by"])
+
+    def begin_raising(self, updated_by=None):
+        """HATCHED → RAISING. Commits all remaining chicks to growing for meat.
+
+        Once raising begins the batch is no longer available for chick sale.
+        ``updated_by`` should be ``request.user`` from the calling view.
+        """
+        if self.status != self.Status.HATCHED:
+            raise ValidationError("Only batches in 'hatched' status can begin raising.")
+        self.status = self.Status.RAISING
         self.updated_by = updated_by
         self.save(update_fields=["status", "updated_at", "updated_by"])
 
-    # ---- single-instance computed properties ---------------------------------
+    def mark_grown(self, updated_by=None):
+        """RAISING → GROWN. Chickens are now fully grown and ready for meat sale.
+
+        ``updated_by`` should be ``request.user`` from the calling view.
+        """
+        if self.status != self.Status.RAISING:
+            raise ValidationError("Only batches in 'raising' status can be marked as grown.")
+        self.status = self.Status.GROWN
+        self.updated_by = updated_by
+        self.save(update_fields=["status", "updated_at", "updated_by"])
+
+    # ---- single-instance computed properties --------------------------------
     #
-    # These are declared as ``cached_property`` so they play nicely with
+    # Declared as ``cached_property`` so they play nicely with
     # BatchQuerySet.with_inventory(): when Django sets the annotation value via
     # setattr(), it writes directly to instance.__dict__ (non-data descriptor),
-    # and subsequent attribute access returns that value without hitting the DB.
-    # On un-annotated instances the descriptor computes from the DB on first
-    # access and caches in __dict__ for the remainder of the request.
+    # bypassing the descriptor on subsequent access. On un-annotated instances
+    # the descriptor computes from the DB on first access and caches the result.
 
     @cached_property
     def hatched_count(self) -> int:
+        """Sum of all Hatch records. Meaningful for egg batches only."""
         return self.hatches.aggregate(s=Sum("quantity"))["s"] or 0
 
     @cached_property
@@ -160,24 +293,75 @@ class Batch(AuditedModel):
         return self.adjustments.aggregate(s=Sum("quantity"))["s"] or 0
 
     @cached_property
+    def chick_pool(self) -> int:
+        """Total chick supply for this batch (mirrors with_inventory annotation).
+
+        Egg batches: actual hatched count (some eggs may fail).
+        Chick batches: initial_quantity (all chicks arrived on purchase day).
+        """
+        if self.purchased_as == self.PurchasedAs.EGGS:
+            return self.hatched_count
+        return self.initial_quantity
+
+    @cached_property
     def chicks_available(self) -> int:
-        return self.hatched_count - self.sold_count - self.adjusted_count
+        """Chicks available for sale. Zero for non-HATCHED batches."""
+        if self.status != self.Status.HATCHED:
+            return 0
+        return self.chick_pool - self.sold_count - self.adjusted_count
+
+    @cached_property
+    def birds_count(self) -> int:
+        """Meaningful live quantity at every status stage (mirrors with_inventory annotation).
+
+        NEW/INCUBATING → initial_quantity (eggs still in process).
+        HATCHED/RAISING/GROWN → remaining birds after sales and adjustments.
+        """
+        if self.status in (self.Status.NEW, self.Status.INCUBATING):
+            return self.initial_quantity
+        return self.chick_pool - self.sold_count - self.adjusted_count
 
     @cached_property
     def revenue(self) -> Decimal:
-        agg = self.sale_lines.filter(sale__status="closed").aggregate(s=Sum(F("quantity") * F("unit_price")))["s"]
+        agg = self.sale_lines.filter(sale__status="closed").aggregate(
+            s=Sum(F("quantity") * F("unit_price"))
+        )["s"]
         return agg or Decimal("0")
+
+    # ---- age tracking ------------------------------------------------------
+
+    @property
+    def current_age_days(self) -> int:
+        """Days since day_1_date. Returns 0 when not yet hatched."""
+        if not self.day_1_date:
+            return 0
+        return (timezone.localdate() - self.day_1_date).days
+
+    @property
+    def current_age_display(self) -> str:
+        """Human-readable age: '—' before hatching, 'Xw Yd' after."""
+        if self.status in (self.Status.NEW, self.Status.INCUBATING):
+            return "—"
+        days = self.current_age_days
+        weeks, remainder = divmod(days, 7)
+        if weeks == 0:
+            return f"{remainder}d"
+        return f"{weeks}w {remainder}d"
+
+    # ---- egg-batch specific ------------------------------------------------
 
     @property
     def failed_count(self) -> int:
-        """Eggs that never hatched. Only meaningful once status is DONE."""
-        return max(self.quantity - self.hatched_count, 0)
+        """Eggs that never hatched. Meaningful for egg batches once HATCHED."""
+        if self.purchased_as != self.PurchasedAs.EGGS:
+            return 0
+        return max(self.initial_quantity - self.hatched_count, 0)
 
     @property
     def success_rate(self) -> float:
-        if not self.quantity:
+        if self.purchased_as != self.PurchasedAs.EGGS or not self.initial_quantity:
             return 0.0
-        return self.hatched_count / self.quantity
+        return self.hatched_count / self.initial_quantity
 
     @property
     def profit(self) -> Decimal:
@@ -185,7 +369,7 @@ class Batch(AuditedModel):
 
 
 class Hatch(AuditedModel):
-    """A daily hatch record on a batch. Quantities aggregate per day in the UI."""
+    """A daily hatch record on an egg batch. Quantities aggregate per day in the UI."""
 
     batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name="hatches")
     date = models.DateField(default=timezone.localdate)

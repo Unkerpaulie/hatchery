@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}New Daily Meat Sale · Hatchery{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">New Daily Meat Sale</h1>
+    <a href="{% url 'sales:meat_sale_list' %}" class="btn btn-sm btn-secondary shadow-sm">
+        <i class="fas fa-arrow-left fa-sm"></i> Back to Meat Sales
+    </a>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <form method="post" id="meatSaleForm" novalidate autocomplete="off">
+            {% csrf_token %}
+
+            <div class="form-row">
+                <div class="form-group col-md-5">
+                    <label>Batch <span class="text-danger">*</span></label>
+                    {{ form.batch }}
+                    {% if form.batch.errors %}
+                        <div class="invalid-feedback d-block">{{ form.batch.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group col-md-3">
+                    <label>Date <span class="text-danger">*</span></label>
+                    {{ form.date }}
+                    {% if form.date.errors %}
+                        <div class="invalid-feedback d-block">{{ form.date.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group col-md-4">
+                    <label>Price per lb ($) <span class="text-danger">*</span></label>
+                    {{ form.price_per_lb }}
+                    {% if form.price_per_lb.errors %}
+                        <div class="invalid-feedback d-block">{{ form.price_per_lb.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Chicken weights (lbs) <span class="text-danger">*</span></label>
+                <small class="form-text text-muted mb-1">
+                    Paste one weight per line, e.g. <code>4.2</code>. Use the Calculate button to verify before saving.
+                </small>
+                {{ form.weights }}
+                {% if form.weights.errors %}
+                    <div class="invalid-feedback d-block">{{ form.weights.errors|join:", " }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label>Notes</label>
+                {{ form.notes }}
+            </div>
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div id="calcError" class="alert alert-danger d-none"></div>
+
+            <hr>
+            <div class="d-flex justify-content-end">
+                <button type="button" id="calculateBtn" class="btn btn-info mr-2">
+                    <i class="fas fa-calculator mr-1"></i> Calculate
+                </button>
+                <a href="{% url 'sales:meat_sale_list' %}" class="btn btn-danger">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ── Confirmation modal ──────────────────────────────────────────────────── #}
+<div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="confirmModalLabel">
+                    <i class="fas fa-check-circle mr-1"></i> Verify Sale Details
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-0" style="max-height:55vh; overflow-y:auto;">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="thead-light">
+                        <tr>
+                            <th class="text-center" style="width:60px;">#</th>
+                            <th class="text-right">Weight (lbs)</th>
+                            <th class="text-right">Sale Price</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalTableBody"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer d-flex align-items-center">
+                <div class="text-left mr-auto">
+                    <strong id="chickenCount"></strong> chicken(s) &nbsp;|&nbsp;
+                    Total weight: <strong><span id="totalWeight"></span> lbs</strong> &nbsp;|&nbsp;
+                    Total revenue: <strong>$<span id="totalRevenue"></span></strong>
+                </div>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-arrow-left mr-1"></i> Back
+                </button>
+                <button type="button" id="confirmSaveBtn" class="btn btn-success">
+                    <i class="fas fa-save mr-1"></i> Confirm &amp; Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    var calculateBtn   = document.getElementById('calculateBtn');
+    var confirmSaveBtn = document.getElementById('confirmSaveBtn');
+    var calcError      = document.getElementById('calcError');
+    var modalBody      = document.getElementById('modalTableBody');
+    var elCount        = document.getElementById('chickenCount');
+    var elWeight       = document.getElementById('totalWeight');
+    var elRevenue      = document.getElementById('totalRevenue');
+
+    calculateBtn.addEventListener('click', function () {
+        var batchId    = document.querySelector('[name=batch]').value;
+        var pricePerLb = document.querySelector('[name=price_per_lb]').value;
+        var weights    = document.querySelector('[name=weights]').value;
+        var csrfToken  = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        calcError.classList.add('d-none');
+        calcError.textContent = '';
+
+        fetch("{% url 'sales:meat_sale_calculate' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                batch_id:     batchId,
+                price_per_lb: pricePerLb,
+                weights:      weights
+            })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) {
+                calcError.textContent = data.error;
+                calcError.classList.remove('d-none');
+                return;
+            }
+
+            var html = '';
+            data.lines.forEach(function (line) {
+                html += '<tr>'
+                      + '<td class="text-center">' + line.n + '</td>'
+                      + '<td class="text-right">'  + line.weight + '</td>'
+                      + '<td class="text-right">$' + line.sale_price + '</td>'
+                      + '</tr>';
+            });
+            modalBody.innerHTML = html;
+
+            elCount.textContent   = data.chicken_count;
+            elWeight.textContent  = data.total_weight;
+            elRevenue.textContent = data.total_revenue;
+
+            $('#confirmModal').modal('show');
+        })
+        .catch(function () {
+            calcError.textContent = 'An unexpected error occurred. Please try again.';
+            calcError.classList.remove('d-none');
+        });
+    });
+
+    /* Confirm & Save — dismiss modal then submit; server re-validates before saving. */
+    confirmSaveBtn.addEventListener('click', function () {
+        $('#confirmModal').modal('hide');
+        document.getElementById('meatSaleForm').submit();
+    });
+}());
+</script>
+{% endblock %}

@@ -129,6 +129,68 @@ class SaleLine(AuditedModel):
             })
 
 
+class MeatSale(AuditedModel):
+    """A daily meat-chicken sales session: one batch, one price, N individual birds.
+
+    Each bird sold is recorded as a MeatSaleLine with its weight. The session
+    is created atomically — lines are bulk-inserted immediately after the
+    MeatSale row is saved in MeatSaleCreateView.
+
+    Unlike chick sales there are no customers, invoices, or status lifecycle.
+    A MeatSale is committed the moment it is saved.
+    """
+
+    batch       = models.ForeignKey(
+        "inventory.Batch", on_delete=models.PROTECT, related_name="meat_sales"
+    )
+    date        = models.DateField(default=timezone.localdate)
+    price_per_lb = models.DecimalField(max_digits=8, decimal_places=2)
+    notes       = models.TextField(blank=True)
+
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date", "-id"]
+
+    def __str__(self):
+        return f"Meat Sale #{self.pk} — Batch #{self.batch_id} ({self.date})"
+
+    @cached_property
+    def chicken_count(self) -> int:
+        """Number of individual birds sold. Iterates in Python so it benefits
+        from prefetch_related('lines') when called on a queryset result."""
+        return len(self.lines.all())
+
+    @cached_property
+    def total_weight(self) -> Decimal:
+        """Sum of all bird weights. Iterates in Python so it benefits from
+        prefetch_related('lines') when called on a queryset result."""
+        return sum((line.weight_lb for line in self.lines.all()), Decimal("0"))
+
+    @cached_property
+    def total_revenue(self) -> Decimal:
+        return self.total_weight * self.price_per_lb
+
+
+class MeatSaleLine(models.Model):
+    """One bird in a MeatSale: its weight in pounds.
+
+    Lines are always created in bulk alongside their parent MeatSale and are
+    never edited individually. No audit fields — attribution lives on the
+    parent MeatSale record.
+    """
+
+    meat_sale = models.ForeignKey(MeatSale, on_delete=models.CASCADE, related_name="lines")
+    weight_lb = models.DecimalField(max_digits=6, decimal_places=2)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.weight_lb} lb (MeatSale #{self.meat_sale_id})"
+
+
 class Adjustment(AuditedModel):
     """Non-sale removal from inventory (personal use, gifts, mortality, etc.).
     Created from the Sales section per the PRD clarification.

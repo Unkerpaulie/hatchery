@@ -41,10 +41,15 @@
     <hr class="sidebar-divider">
     <div class="sidebar-heading">Sales</div>
 
-    <li class="nav-item {% if request.resolver_match.app_name == 'sales' and 'sale' in request.resolver_match.url_name and 'customer' not in request.resolver_match.url_name and 'adjustment' not in request.resolver_match.url_name %}active{% endif %}">
+    <li class="nav-item {% if request.resolver_match.app_name == 'sales' and 'sale' in request.resolver_match.url_name and 'meat' not in request.resolver_match.url_name and 'customer' not in request.resolver_match.url_name and 'adjustment' not in request.resolver_match.url_name %}active{% endif %}">
         <a class="nav-link" href="{% url 'sales:sale_list' %}">
             <i class="fas fa-fw fa-cash-register"></i>
-            <span>Sales</span></a>
+            <span>Chick Sales</span></a>
+    </li>
+    <li class="nav-item {% if request.resolver_match.app_name == 'sales' and 'meat' in request.resolver_match.url_name %}active{% endif %}">
+        <a class="nav-link" href="{% url 'sales:meat_sale_list' %}">
+            <i class="fas fa-fw fa-drumstick-bite"></i>
+            <span>Meat Sales</span></a>
     </li>
     <li class="nav-item {% if request.resolver_match.app_name == 'sales' and 'customer' in request.resolver_match.url_name %}active{% endif %}">
         <a class="nav-link" href="{% url 'sales:customer_list' %}">

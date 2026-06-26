@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Meat Sales · Hatchery{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'vendor/datatables/dataTables.bootstrap4.min.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Daily Meat Sales</h1>
+    <a href="{% url 'sales:meat_sale_create' %}" class="btn btn-sm btn-primary shadow-sm">
+        <i class="fas fa-plus fa-sm text-white-50"></i> New Daily Meat Sale
+    </a>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" id="meatSalesTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Batch</th>
+                        <th class="text-right">Chickens</th>
+                        <th class="text-right">Total Weight (lbs)</th>
+                        <th class="text-right">Price / lb</th>
+                        <th class="text-right">Revenue</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for ms in meat_sales %}
+                    <tr>
+                        <td>{{ ms.pk }}</td>
+                        <td>{{ ms.date }}</td>
+                        <td>
+                            <a href="{% url 'inventory:batch_detail' ms.batch_id %}">
+                                Batch #{{ ms.batch_id }}
+                            </a>
+                        </td>
+                        <td class="text-right">{{ ms.chicken_count }}</td>
+                        <td class="text-right">{{ ms.total_weight|floatformat:2 }}</td>
+                        <td class="text-right">${{ ms.price_per_lb|floatformat:2 }}</td>
+                        <td class="text-right">${{ ms.total_revenue|floatformat:2 }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">No meat sales recorded yet.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'vendor/datatables/dataTables.bootstrap4.min.js' %}"></script>
+<script>
+    $('#meatSalesTable').DataTable({
+        order: [[1, 'desc']],
+        columnDefs: [{ orderable: false, targets: [] }]
+    });
+</script>
+{% endblock %}

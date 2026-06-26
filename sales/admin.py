@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Adjustment, Customer, Sale, SaleLine
+from .models import Adjustment, Customer, MeatSale, MeatSaleLine, Sale, SaleLine
 
 
 class SaleLineInline(admin.TabularInline):
@@ -43,3 +43,23 @@ class AdjustmentAdmin(admin.ModelAdmin):
     list_display = ("batch", "date", "quantity", "reason")
     list_select_related = ("batch",)
     readonly_fields = ("created_by", "updated_by", "created_at")
+
+
+class MeatSaleLineInline(admin.TabularInline):
+    model = MeatSaleLine
+    extra = 0
+    readonly_fields = ("weight_lb",)
+
+
+@admin.register(MeatSale)
+class MeatSaleAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "batch", "date", "price_per_lb")
+    list_select_related = ("batch",)
+    readonly_fields = ("created_by", "updated_by", "created_at", "updated_at")
+    inlines = [MeatSaleLineInline]
+
+
+@admin.register(MeatSaleLine)
+class MeatSaleLineAdmin(admin.ModelAdmin):
+    list_display = ("meat_sale", "weight_lb")
+    list_select_related = ("meat_sale__batch",)

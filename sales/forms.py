@@ -1,16 +1,21 @@
-"""Sales forms: Customer, Sale header, SaleLine, Adjustment.
+"""Sales forms: Customer, Sale header, SaleLine, Adjustment, MeatSale.
 
 For PENDING sales, SaleLineForm skips the inventory ceiling check — lines on
 a pending sale are drafts; the ceiling is enforced at close time in
 SaleCloseView. AdjustmentForm still validates the ceiling on every save
 because adjustments always commit immediately.
+
+MeatSaleForm validates the weight list on every submit because meat sales
+commit inventory immediately (no draft/pending state).
 """
+
+from decimal import Decimal, InvalidOperation
 
 from django import forms
 
 from inventory.models import Batch
 
-from .models import Adjustment, Customer, Sale, SaleLine
+from .models import Adjustment, Customer, MeatSale, Sale, SaleLine
 
 # ---- shared widget helpers -------------------------------------------------
 
@@ -197,5 +202,94 @@ class AdjustmentForm(forms.ModelForm):
                 self.add_error(
                     "quantity",
                     f"Only {ceiling} available to adjust in Batch #{batch.pk}.",
+                )
+        return cleaned
+
+
+# ---- Meat sale helpers -----------------------------------------------------
+
+def _meat_batches():
+    """Annotated queryset of GROWN batches that still have birds available for meat sale."""
+    return (
+        Batch.objects.with_inventory()
+        .filter(status=Batch.Status.GROWN, birds_count__gt=0)
+        .order_by("id")
+    )
+
+
+def _meat_batch_label(obj):
+    return f"Batch #{obj.pk} (Grown) — {obj.birds_count} bird(s) available"
+
+
+# ---- Meat sale form --------------------------------------------------------
+
+_WEIGHTS_TEXTAREA = {"class": "form-control", "rows": 10, "style": "font-family: monospace;"}
+
+
+class MeatSaleForm(forms.ModelForm):
+    """Form for a daily meat-chicken sale session.
+
+    ``weights`` is a virtual field (not on the model): a textarea where the
+    user pastes one weight per line. ``clean_weights`` parses the text into a
+    list of Decimals; ``clean`` checks the count against batch availability.
+    The view converts the parsed list into MeatSaleLine bulk inserts.
+    """
+
+    weights = forms.CharField(
+        widget=forms.Textarea(attrs=_WEIGHTS_TEXTAREA),
+        label="Chicken weights (lbs)",
+        help_text="Paste one weight per line, e.g. 4.2",
+    )
+
+    class Meta:
+        model = MeatSale
+        fields = ["batch", "date", "price_per_lb", "notes"]
+        widgets = {
+            "batch":        forms.Select(attrs=_SELECT),
+            "date":         forms.DateInput(attrs=_DATE),
+            "price_per_lb": forms.NumberInput(attrs=_MONEY),
+            "notes":        forms.Textarea(attrs=_TEXTAREA),
+        }
+        labels = {"price_per_lb": "Price per lb ($)"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["batch"].queryset = _meat_batches()
+        self.fields["batch"].label_from_instance = _meat_batch_label
+        self.fields["batch"].empty_label = "— Select a batch —"
+
+    def clean_weights(self):
+        """Parse the weights textarea into a list of positive Decimals."""
+        raw = self.cleaned_data.get("weights", "")
+        parsed = []
+        for i, line in enumerate(raw.strip().splitlines(), 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                weight = Decimal(line)
+            except InvalidOperation:
+                raise forms.ValidationError(
+                    f"Line {i}: '{line}' is not a valid number."
+                )
+            if weight <= 0:
+                raise forms.ValidationError(
+                    f"Line {i}: weight must be greater than zero."
+                )
+            parsed.append(weight)
+        if not parsed:
+            raise forms.ValidationError("Please enter at least one weight.")
+        return parsed
+
+    def clean(self):
+        cleaned = super().clean()
+        batch = cleaned.get("batch")
+        weights = cleaned.get("weights")  # list of Decimals after clean_weights
+        if batch and weights:
+            batch_inv = Batch.objects.with_inventory().get(pk=batch.pk)
+            if len(weights) > batch_inv.birds_count:
+                raise forms.ValidationError(
+                    f"You entered {len(weights)} weight(s) but Batch #{batch.pk} "
+                    f"only has {batch_inv.birds_count} bird(s) available."
                 )
         return cleaned

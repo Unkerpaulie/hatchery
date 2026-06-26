@@ -11,7 +11,7 @@ from decimal import Decimal
 from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, DecimalField, F, IntegerField, OuterRef, Subquery, Sum, Value, When
+from django.db.models import Case, Count, DecimalField, F, IntegerField, OuterRef, Subquery, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.functional import cached_property
@@ -49,8 +49,9 @@ class BatchQuerySet(models.QuerySet):
     """
 
     def with_inventory(self):
-        SaleLine = apps.get_model("sales", "SaleLine")
-        Adjustment = apps.get_model("sales", "Adjustment")
+        SaleLine    = apps.get_model("sales", "SaleLine")
+        Adjustment  = apps.get_model("sales", "Adjustment")
+        MeatSaleLine = apps.get_model("sales", "MeatSaleLine")
 
         def _sum_sq(model, field="quantity", extra_filter=None):
             qs = model.objects.filter(batch=OuterRef("pk"))
@@ -58,13 +59,22 @@ class BatchQuerySet(models.QuerySet):
                 qs = qs.filter(**extra_filter)
             return qs.values("batch").annotate(s=Sum(field)).values("s")
 
-        # Only CLOSED sales commit inventory.
+        # Only CLOSED sales commit chick inventory.
         closed_filter = {"sale__status": "closed"}
 
         revenue_sq = (
             SaleLine.objects.filter(batch=OuterRef("pk"), sale__status="closed")
             .values("batch")
             .annotate(s=Sum(F("quantity") * F("unit_price")))
+            .values("s")
+        )
+
+        # Each MeatSaleLine row = one chicken sold. Count rows per batch via
+        # the MeatSale FK (MeatSaleLine → MeatSale → Batch).
+        meat_sold_sq = (
+            MeatSaleLine.objects.filter(meat_sale__batch=OuterRef("pk"))
+            .values("meat_sale__batch_id")
+            .annotate(s=Count("pk"))
             .values("s")
         )
 
@@ -76,6 +86,7 @@ class BatchQuerySet(models.QuerySet):
                 hatched_count=Coalesce(Subquery(_sum_sq(Hatch), output_field=IntegerField()), zero_int),
                 sold_count=Coalesce(Subquery(_sum_sq(SaleLine, extra_filter=closed_filter), output_field=IntegerField()), zero_int),
                 adjusted_count=Coalesce(Subquery(_sum_sq(Adjustment), output_field=IntegerField()), zero_int),
+                meat_sold_count=Coalesce(Subquery(meat_sold_sq, output_field=IntegerField()), zero_int),
                 revenue=Coalesce(
                     Subquery(revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
                     zero_money,
@@ -102,10 +113,10 @@ class BatchQuerySet(models.QuerySet):
                 ),
                 # birds_count: total living inventory in the batch at any moment.
                 # Uniform formula across all lifecycle phases:
-                #   initial_quantity − all_adjustments − all_sales
+                #   initial_quantity − all_adjustments − chick_sales − meat_sales
                 # For egg batches the failed-egg Adjustment auto-created by mark_hatched()
                 # is what makes this formula correct post-HATCHED (see Batch.mark_hatched).
-                birds_count=F("initial_quantity") - F("adjusted_count") - F("sold_count"),
+                birds_count=F("initial_quantity") - F("adjusted_count") - F("sold_count") - F("meat_sold_count"),
             )
             .annotate(
                 # 4th pass: sale-availability and adjustment ceiling.
@@ -349,17 +360,27 @@ class Batch(AuditedModel):
         return self.initial_quantity - self.hatched_count
 
     @cached_property
+    def meat_sold_count(self) -> int:
+        """Count of individual chickens sold as meat from this batch.
+
+        Each MeatSaleLine row represents one bird. We traverse through MeatSale
+        because MeatSaleLine has no direct FK to Batch.
+        """
+        from sales.models import MeatSaleLine  # lazy import — avoids circular dependency
+        return MeatSaleLine.objects.filter(meat_sale__batch_id=self.pk).count()
+
+    @cached_property
     def birds_count(self) -> int:
         """Total living inventory in the batch at any moment (mirrors with_inventory annotation).
 
         Uniform formula for every lifecycle phase:
-            initial_quantity − all_adjustments − all_sales
+            initial_quantity − all_adjustments − chick_sales − meat_sales
 
         For egg batches the failed-egg Adjustment auto-created by mark_hatched() is
         what makes this formula correct post-HATCHED; without it the result would
         be initial_quantity instead of hatched_count as the effective base.
         """
-        return self.initial_quantity - self.adjusted_count - self.sold_count
+        return self.initial_quantity - self.adjusted_count - self.sold_count - self.meat_sold_count
 
     @cached_property
     def chicks_available(self) -> int:

@@ -1,15 +1,15 @@
 """Sales views: Customer CRUD (no delete), Sale lifecycle, SaleLine
-add/delete, and Adjustment management.
+add/delete, Adjustment management, and MeatSale (daily meat sales).
 
 All views require login. Business logic stays on models/forms (rules.md §8).
 """
 
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 
 from core.views import AuditMixin
 from django.db.models import DecimalField, F, IntegerField, OuterRef, Subquery, Sum, Value
@@ -21,8 +21,8 @@ from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from inventory.models import Batch
 
-from .forms import AdjustmentForm, CustomerForm, SaleForm, SaleLineForm
-from .models import Adjustment, Customer, Sale, SaleLine
+from .forms import AdjustmentForm, CustomerForm, MeatSaleForm, SaleForm, SaleLineForm
+from .models import Adjustment, Customer, MeatSale, MeatSaleLine, Sale, SaleLine
 
 
 # ---------------------------------------------------------------------------
@@ -333,3 +333,141 @@ class AdjustmentCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         messages.success(self.request, "Adjustment recorded.")
         return super().form_valid(form)
+
+
+# ---------------------------------------------------------------------------
+# Meat sale views  (daily retail chicken sales — no customer, no invoice)
+# ---------------------------------------------------------------------------
+
+class MeatSaleListView(LoginRequiredMixin, ListView):
+    template_name = "sales/meat_sale_list.html"
+    context_object_name = "meat_sales"
+
+    def get_queryset(self):
+        # prefetch_related("lines") lets chicken_count/total_weight/total_revenue
+        # use the prefetched cache instead of issuing per-object queries.
+        return MeatSale.objects.select_related("batch").prefetch_related("lines")
+
+
+class MeatSaleCreateView(LoginRequiredMixin, CreateView):
+    """Create a MeatSale and its MeatSaleLines in one atomic step.
+
+    The form carries a virtual ``weights`` field (list of Decimals after
+    validation). After Django saves the MeatSale header, we bulk-create one
+    MeatSaleLine per weight entry. Audit fields are stamped directly here
+    rather than via AuditMixin so we can still bulk_create the lines cleanly.
+    """
+
+    model = MeatSale
+    form_class = MeatSaleForm
+    template_name = "sales/meat_sale_form.html"
+    success_url = reverse_lazy("sales:meat_sale_list")
+
+    def form_valid(self, form):
+        # Stamp audit fields before the INSERT.
+        form.instance.created_by = self.request.user
+        form.instance.updated_by = self.request.user
+        response = super().form_valid(form)          # saves MeatSale → self.object
+
+        weights = form.cleaned_data["weights"]       # list[Decimal] from clean_weights
+        MeatSaleLine.objects.bulk_create([
+            MeatSaleLine(meat_sale=self.object, weight_lb=w)
+            for w in weights
+        ])
+
+        messages.success(
+            self.request,
+            f"Meat sale saved — {len(weights)} chicken(s) from "
+            f"Batch #{self.object.batch_id}.",
+        )
+        return response
+
+
+class MeatSaleCalculateView(LoginRequiredMixin, View):
+    """AJAX POST: validate and calculate meat sale lines without saving.
+
+    Accepts JSON: {batch_id, price_per_lb, weights (newline-delimited string)}.
+    Returns JSON with a line table, totals, and chicken count on success,
+    or {error: "..."} on validation failure.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "Invalid request."}, status=400)
+
+        batch_id   = data.get("batch_id")
+        price_raw  = data.get("price_per_lb", "")
+        weights_raw = data.get("weights", "")
+
+        # ── Validate batch ──────────────────────────────────────────────────
+        try:
+            batch = Batch.objects.with_inventory().get(
+                pk=batch_id,
+                status=Batch.Status.GROWN,
+            )
+        except (Batch.DoesNotExist, TypeError, ValueError):
+            return JsonResponse({"error": "Please select a valid batch."}, status=400)
+
+        # ── Validate price ──────────────────────────────────────────────────
+        try:
+            price_per_lb = Decimal(str(price_raw))
+            if price_per_lb <= 0:
+                raise ValueError
+        except (InvalidOperation, ValueError):
+            return JsonResponse(
+                {"error": "Price per pound must be a positive number."}, status=400
+            )
+
+        # ── Parse weights ───────────────────────────────────────────────────
+        parsed = []
+        for i, line in enumerate(weights_raw.strip().splitlines(), 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                weight = Decimal(line)
+            except InvalidOperation:
+                return JsonResponse(
+                    {"error": f"Line {i}: '{line}' is not a valid number."}, status=400
+                )
+            if weight <= 0:
+                return JsonResponse(
+                    {"error": f"Line {i}: weight must be greater than zero."}, status=400
+                )
+            parsed.append(weight)
+
+        if not parsed:
+            return JsonResponse({"error": "Please enter at least one weight."}, status=400)
+
+        # ── Check availability ──────────────────────────────────────────────
+        if len(parsed) > batch.birds_count:
+            return JsonResponse(
+                {
+                    "error": (
+                        f"You entered {len(parsed)} weight(s) but Batch #{batch.pk} "
+                        f"only has {batch.birds_count} bird(s) available."
+                    )
+                },
+                status=400,
+            )
+
+        # ── Build response ──────────────────────────────────────────────────
+        two_places = Decimal("0.01")
+        lines      = []
+        total_weight  = Decimal("0")
+        total_revenue = Decimal("0")
+
+        for i, w in enumerate(parsed, 1):
+            sale_price = (w * price_per_lb).quantize(two_places)
+            lines.append({"n": i, "weight": str(w), "sale_price": str(sale_price)})
+            total_weight  += w
+            total_revenue += sale_price
+
+        return JsonResponse({
+            "lines":         lines,
+            "chicken_count": len(parsed),
+            "total_weight":  str(total_weight.quantize(two_places)),
+            "total_revenue": str(total_revenue.quantize(two_places)),
+        })

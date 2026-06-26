@@ -96,23 +96,19 @@
         <div class="card shadow mb-4 border-left-warning">
             <div class="card-body">
                 <div class="row text-center">
-                    <div class="col-4">
+                    <div class="col-6">
                         <div class="h4 font-weight-bold text-warning">{{ batch.hatched_count }}</div>
                         <div class="small text-gray-600">Hatched</div>
                     </div>
-                    <div class="col-4">
+                    <div class="col-6">
                         <div class="h4 font-weight-bold text-gray-800">{{ eggs_remaining }}</div>
                         <div class="small text-gray-600">Remaining</div>
-                    </div>
-                    <div class="col-4">
-                        <div class="h4 font-weight-bold text-success">{{ batch.hatched_count }}</div>
-                        <div class="small text-gray-600">Hatched So Far</div>
                     </div>
                 </div>
                 <hr class="my-3">
                 <div class="text-center">
                     <button class="btn btn-success" data-toggle="modal" data-target="#markHatchedModal">
-                        <i class="fas fa-check-circle mr-1"></i> Mark as Hatched
+                        <i class="fas fa-check-circle mr-1"></i> Complete Incubation
                     </button>
                 </div>
             </div>
@@ -385,7 +381,7 @@
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Mark Batch as Hatched</h5>
+                <h5 class="modal-title">Complete Incubation</h5>
                 <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
             </div>
             <div class="modal-body">

@@ -24,7 +24,7 @@ _MONEY    = {"class": "form-control", "step": "0.01"}
 # ---- batch queryset helper -------------------------------------------------
 
 def _available_batches():
-    """Annotated queryset of batches that currently have chicks available,
+    """Annotated queryset of batches that currently have chicks available for sale,
     ordered by batch number ascending (oldest first).
     """
     return Batch.objects.with_inventory().filter(chicks_available__gt=0).order_by("id")
@@ -32,6 +32,27 @@ def _available_batches():
 
 def _batch_label(obj):
     return f"Batch #{obj.pk} ({obj.get_status_display()}) — {obj.chicks_available} available"
+
+
+def _adjustment_batches():
+    """Annotated queryset of batches that have something adjustable (any status),
+    ordered by batch number ascending (oldest first).
+    """
+    return Batch.objects.with_inventory().filter(adjustment_ceiling__gt=0).order_by("id")
+
+
+def _adjustment_batch_label(obj):
+    """Batch label for adjustment form — shows status-appropriate quantity."""
+    status = obj.status
+    ceiling = obj.adjustment_ceiling
+    if status == Batch.Status.NEW:
+        return f"Batch #{obj.pk} (New) — {ceiling} egg(s)"
+    if status == Batch.Status.INCUBATING:
+        return f"Batch #{obj.pk} (Incubating) — {ceiling} chick(s) available"
+    if status == Batch.Status.HATCHED:
+        return f"Batch #{obj.pk} (Hatched) — {ceiling} chick(s) available"
+    # RAISING or GROWN
+    return f"Batch #{obj.pk} ({obj.get_status_display()}) — {ceiling} bird(s)"
 
 
 # ---- Customer --------------------------------------------------------------
@@ -157,8 +178,8 @@ class AdjustmentForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["batch"].queryset = _available_batches()
-        self.fields["batch"].label_from_instance = _batch_label
+        self.fields["batch"].queryset = _adjustment_batches()
+        self.fields["batch"].label_from_instance = _adjustment_batch_label
         self.fields["batch"].empty_label = "— Select a batch —"
 
     def clean(self):
@@ -171,10 +192,10 @@ class AdjustmentForm(forms.ModelForm):
                 prior = Adjustment.objects.filter(pk=self.instance.pk).values_list(
                     "quantity", flat=True
                 ).first() or 0
-            ceiling = batch.chicks_available + prior
+            ceiling = batch.adjustment_ceiling + prior
             if qty > ceiling:
                 self.add_error(
                     "quantity",
-                    f"Only {ceiling} chick(s) available in Batch #{batch.pk}.",
+                    f"Only {ceiling} available to adjust in Batch #{batch.pk}.",
                 )
         return cleaned

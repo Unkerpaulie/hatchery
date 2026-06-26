@@ -162,10 +162,10 @@ class Adjustment(AuditedModel):
             prior_quantity = Adjustment.objects.filter(pk=self.pk).values_list(
                 "quantity", flat=True
             ).first() or 0
-        ceiling = self.batch.chicks_available + prior_quantity
+        ceiling = self.batch.adjustment_ceiling + prior_quantity
         if self.quantity > ceiling:
             raise ValidationError({
                 "quantity": (
-                    f"Only {ceiling} chick(s) available in batch #{self.batch_id}."
+                    f"Only {ceiling} available to adjust in batch #{self.batch_id}."
                 ),
             })

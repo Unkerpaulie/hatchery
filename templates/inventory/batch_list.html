@@ -54,7 +54,7 @@
                             {% if batch.status == 'new' %}
                                 {{ batch.birds_count }}&nbsp;<span data-toggle="tooltip" title="Eggs purchased — awaiting incubation" style="cursor:default;">🥚</span>
                             {% elif batch.status == 'incubating' %}
-                                {{ batch.birds_count }}&nbsp;<span data-toggle="tooltip" title="Eggs currently incubating" style="cursor:default;">🐣</span>{% if batch.hatched_count %}, {{ batch.hatched_count }}&nbsp;<span data-toggle="tooltip" title="Chicks hatched so far — available for sale" style="cursor:default;">🐤</span>{% endif %}
+                                {{ batch.eggs_remaining }}&nbsp;<span data-toggle="tooltip" title="Eggs currently incubating" style="cursor:default;">🐣</span>{% if batch.chicks_available %}, {{ batch.chicks_available }}&nbsp;<span data-toggle="tooltip" title="Chicks hatched so far — available for sale" style="cursor:default;">🐤</span>{% endif %}
                             {% elif batch.status == 'hatched' %}
                                 {{ batch.birds_count }}&nbsp;<span data-toggle="tooltip" title="Chicks available for sale" style="cursor:default;">🐤</span>
                             {% elif batch.status == 'raising' %}

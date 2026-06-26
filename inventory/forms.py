@@ -4,6 +4,12 @@ from django import forms
 
 from .models import Batch, Expense, Hatch, Supplier
 
+# ---- batch label helper for expense form ------------------------------------
+
+def _expense_batch_label(batch):
+    """Human-readable batch label shown in the Expense form dropdown."""
+    return f"Batch #{batch.pk} ({batch.get_status_display()}) — {batch.purchase_date}"
+
 # ---- shared widget helpers -------------------------------------------------
 
 _TEXT = {"class": "form-control"}
@@ -162,14 +168,24 @@ _MONEY = {"class": "form-control", "step": "0.01"}
 class ExpenseForm(forms.ModelForm):
     class Meta:
         model = Expense
-        fields = ["date", "category", "amount", "description"]
+        fields = ["date", "category", "amount", "batch", "supplier", "description"]
         widgets = {
             "date":        forms.DateInput(attrs=_DATE),
             "category":    forms.Select(attrs=_SELECT),
             "amount":      forms.NumberInput(attrs=_MONEY),
+            "batch":       forms.Select(attrs=_SELECT),
+            "supplier":    forms.Select(attrs=_SELECT),
             "description": forms.TextInput(attrs=_TEXT),
         }
         labels = {"amount": "Amount ($)"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["batch"].queryset = Batch.objects.order_by("-purchase_date", "-id")
+        self.fields["batch"].label_from_instance = _expense_batch_label
+        self.fields["batch"].empty_label = "— General expense (no batch) —"
+        self.fields["supplier"].queryset = Supplier.objects.order_by("business_name")
+        self.fields["supplier"].empty_label = "— No supplier —"
 
     def clean_amount(self):
         amount = self.cleaned_data.get("amount")

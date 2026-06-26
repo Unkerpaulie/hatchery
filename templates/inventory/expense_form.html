@@ -35,6 +35,22 @@
                     {% endif %}
                 </div>
             </div>
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label>From Supplier <span class="text-muted small">(optional)</span></label>
+                    {{ form.supplier }}
+                    {% if form.supplier.errors %}
+                        <div class="invalid-feedback d-block">{{ form.supplier.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group col-md-6">
+                    <label>For Batch <span class="text-muted small">(optional)</span></label>
+                    {{ form.batch }}
+                    {% if form.batch.errors %}
+                        <div class="invalid-feedback d-block">{{ form.batch.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+            </div>
             <div class="form-group">
                 <label>Description <span class="text-danger">*</span></label>
                 {{ form.description }}

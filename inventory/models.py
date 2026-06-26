@@ -471,10 +471,11 @@ class Hatch(AuditedModel):
 
 
 class Expense(AuditedModel):
-    """An operating expense not tied to a specific batch (feed, electricity,
-    supplies, labour, etc.). Batch egg-purchase costs are captured on
-    ``Batch.total_cost``; this model covers all other running costs so the
-    dashboard can show a meaningful total-cost figure.
+    """An operating expense, optionally attributed to a specific batch and/or supplier.
+
+    Batch egg-purchase costs are captured on ``Batch.total_cost``; this model
+    covers all other running costs (feed, medicine, labour, etc.) and supports
+    per-batch profitability tracking when a batch is specified.
     """
 
     class Category(models.TextChoices):
@@ -487,6 +488,20 @@ class Expense(AuditedModel):
         SUPPLIES    = "supplies",    "Supplies"
         OTHER       = "other",       "Other"
 
+    batch    = models.ForeignKey(
+        "Batch",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="expenses",
+        help_text="Batch this expense is attributed to, if applicable.",
+    )
+    supplier = models.ForeignKey(
+        "Supplier",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="expenses",
+        help_text="Supplier this expense is attributed to, if applicable.",
+    )
     date        = models.DateField(default=timezone.localdate)
     amount      = models.DecimalField(max_digits=10, decimal_places=2)
     category    = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)

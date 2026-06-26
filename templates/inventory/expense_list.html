@@ -22,6 +22,8 @@
                     <tr>
                         <th>Date</th>
                         <th>Category</th>
+                        <th>Batch</th>
+                        <th>Supplier</th>
                         <th>Description</th>
                         <th class="text-right">Amount</th>
                         <th class="text-center" style="width:110px;">Actions</th>
@@ -32,6 +34,22 @@
                     <tr>
                         <td>{{ expense.date }}</td>
                         <td>{{ expense.get_category_display }}</td>
+                        <td>
+                            {% if expense.batch %}
+                                <a href="{% url 'inventory:batch_detail' expense.batch.pk %}">
+                                    Batch #{{ expense.batch.pk }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if expense.supplier %}
+                                {{ expense.supplier.business_name }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
                         <td>{{ expense.description }}</td>
                         <td class="text-right">${{ expense.amount|floatformat:2 }}</td>
                         <td class="text-center">
@@ -49,7 +67,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="5" class="text-center text-muted">No expenses recorded yet.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted">No expenses recorded yet.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -83,7 +101,7 @@
 <script src="{% static 'vendor/datatables/jquery.dataTables.min.js' %}"></script>
 <script src="{% static 'vendor/datatables/dataTables.bootstrap4.min.js' %}"></script>
 <script>
-    $('#expensesTable').DataTable({ order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: 4 }] });
+    $('#expensesTable').DataTable({ order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: 6 }] });
     $('#deleteModal').on('show.bs.modal', function (e) {
         var btn = $(e.relatedTarget);
         $(this).find('#deleteModalForm').attr('action', btn.data('url'));

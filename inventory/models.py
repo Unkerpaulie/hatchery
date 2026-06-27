@@ -500,13 +500,17 @@ class Expense(AuditedModel):
     """
 
     class Category(models.TextChoices):
+        CLEANING   = "cleaning",   "Cleaning"
         ELECTRICITY = "electricity", "Electricity"
         EQUIPMENT   = "equipment",   "Equipment"
         FEED        = "feed",        "Feed"
         LABOR       = "labor",       "Labor"
+        MAINTENANCE  = "maintenance",  "Maintenance"
         MEDICINE    = "medicine",    "Medicine"
+        PACKAGING   = "packaging",   "Packaging"
         PHONE       = "phone",       "Phone"
         SUPPLIES    = "supplies",    "Supplies"
+        TRANSPORT   = "transport",   "Transport"
         OTHER       = "other",       "Other"
 
     batch    = models.ForeignKey(

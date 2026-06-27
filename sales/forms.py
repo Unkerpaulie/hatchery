@@ -238,7 +238,11 @@ class MeatSaleForm(forms.ModelForm):
     weights = forms.CharField(
         widget=forms.Textarea(attrs=_WEIGHTS_TEXTAREA),
         label="Chicken weights (lbs)",
-        help_text="Paste one weight per line, e.g. 4.2",
+        help_text=(
+            "One weight per line. Use a decimal point (e.g. 4.2) — "
+            "commas are accepted as decimal separators. "
+            "No letters, units, or extra punctuation."
+        ),
     )
 
     class Meta:
@@ -259,26 +263,55 @@ class MeatSaleForm(forms.ModelForm):
         self.fields["batch"].empty_label = "— Select a batch —"
 
     def clean_weights(self):
-        """Parse the weights textarea into a list of positive Decimals."""
+        """Parse the weights textarea into a list of positive Decimals.
+
+        Normalisation applied before parsing:
+          - Leading/trailing whitespace stripped per line.
+          - Blank lines silently skipped.
+          - A single comma is treated as a decimal separator (4,2 → 4.2).
+            A comma used as a thousands separator (4,200) is still rejected
+            because the result after replacement ('4.200') is unambiguous and
+            parses correctly, while an ambiguous case like '4,2,00' will fail.
+
+        All errors are collected before raising so the user sees every
+        problem in one pass rather than fixing them one at a time.
+        """
         raw = self.cleaned_data.get("weights", "")
         parsed = []
+        errors = []
+
         for i, line in enumerate(raw.strip().splitlines(), 1):
             line = line.strip()
             if not line:
                 continue
+
+            # Normalise comma-as-decimal-separator: only when there is
+            # exactly one comma and no dot already present.
+            normalised = line
+            if "," in normalised and "." not in normalised and normalised.count(",") == 1:
+                normalised = normalised.replace(",", ".")
+
             try:
-                weight = Decimal(line)
+                weight = Decimal(normalised)
+                # Guard against special Decimal values (Infinity, NaN).
+                if not weight.is_finite():
+                    raise InvalidOperation
             except InvalidOperation:
-                raise forms.ValidationError(
-                    f"Line {i}: '{line}' is not a valid number."
-                )
+                errors.append(f"Line {i}: '{line}' is not a valid number.")
+                continue
+
             if weight <= 0:
-                raise forms.ValidationError(
-                    f"Line {i}: weight must be greater than zero."
-                )
+                errors.append(f"Line {i}: weight must be greater than zero (got {line}).")
+                continue
+
             parsed.append(weight)
+
+        if errors:
+            raise forms.ValidationError(errors)
+
         if not parsed:
             raise forms.ValidationError("Please enter at least one weight.")
+
         return parsed
 
     def clean(self):

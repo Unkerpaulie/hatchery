@@ -34,13 +34,13 @@ class AuditMixin:
             form.instance.created_by = self.request.user
         form.instance.updated_by = self.request.user
         return super().form_valid(form)
-from django.db.models import DecimalField, F, Sum, Value
+from django.db.models import Count, DecimalField, F, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.views.generic import TemplateView
 
 from inventory.models import Batch, Expense, Hatch
-from sales.models import Adjustment, SaleLine
+from sales.models import Adjustment, MeatSaleLine, SaleLine
 
 
 class DashboardView(LoginRequiredMixin, TemplateView):
@@ -93,10 +93,16 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         ctx["total_costs"] = batch_costs + expense_costs
 
         # ── KPI: revenue ─────────────────────────────────────────────────
-        # Only CLOSED sales generate realised revenue.
-        ctx["total_revenue"] = SaleLine.objects.filter(sale__status="closed").aggregate(
+        # Chick sales: only CLOSED sale lines count as realised revenue.
+        chick_revenue = SaleLine.objects.filter(sale__status="closed").aggregate(
             s=Coalesce(Sum(F("quantity") * F("unit_price")), zero)
         )["s"]
+        # Meat sales: SUM(weight_lb × price_per_lb) across all lines.
+        # Django joins through the FK so this is a single query.
+        meat_revenue = MeatSaleLine.objects.aggregate(
+            s=Coalesce(Sum(F("weight_lb") * F("meat_sale__price_per_lb")), zero)
+        )["s"]
+        ctx["total_revenue"] = chick_revenue + meat_revenue
 
         # ── Chart: daily activity for the past 30 days ───────────────────
         today = timezone.localdate()
@@ -110,7 +116,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 .annotate(qty=Sum("quantity"))
             )
         }
-        sale_map = {
+        # Chicks sold per day (closed chick-sale lines).
+        chick_sale_map = {
             str(r["sale__date"]): r["qty"]
             for r in (
                 SaleLine.objects.filter(sale__date__gte=cutoff, sale__status="closed")
@@ -118,14 +125,24 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 .annotate(qty=Sum("quantity"))
             )
         }
+        # Meat chickens sold per day (one MeatSaleLine row = one bird).
+        meat_sale_map = {
+            str(r["meat_sale__date"]): r["qty"]
+            for r in (
+                MeatSaleLine.objects.filter(meat_sale__date__gte=cutoff)
+                .values("meat_sale__date")
+                .annotate(qty=Count("pk"))
+            )
+        }
 
         labels = [
             (today - timedelta(days=i)).isoformat() for i in range(29, -1, -1)
         ]
         ctx["chart_json"] = json.dumps({
-            "labels": labels,
-            "hatched": [hatch_map.get(d, 0) for d in labels],
-            "sold":    [sale_map.get(d, 0)  for d in labels],
+            "labels":     labels,
+            "hatched":    [hatch_map.get(d, 0)      for d in labels],
+            "chick_sold": [chick_sale_map.get(d, 0) for d in labels],
+            "meat_sold":  [meat_sale_map.get(d, 0)  for d in labels],
         })
 
         return ctx

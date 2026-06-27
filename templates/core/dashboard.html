@@ -113,18 +113,25 @@
             labels: labels,
             datasets: [
                 {
-                    label: 'Hatched',
+                    label: 'Hatched (Chicks)',
                     backgroundColor: 'rgba(78,115,223,0.7)',
                     borderColor: 'rgba(78,115,223,1)',
                     borderWidth: 1,
                     data: raw.hatched
                 },
                 {
-                    label: 'Sold',
+                    label: 'Chicks Sold',
                     backgroundColor: 'rgba(28,200,138,0.7)',
                     borderColor: 'rgba(28,200,138,1)',
                     borderWidth: 1,
-                    data: raw.sold
+                    data: raw.chick_sold
+                },
+                {
+                    label: 'Meat Sold',
+                    backgroundColor: 'rgba(246,143,62,0.7)',
+                    borderColor: 'rgba(246,143,62,1)',
+                    borderWidth: 1,
+                    data: raw.meat_sold
                 }
             ]
         },

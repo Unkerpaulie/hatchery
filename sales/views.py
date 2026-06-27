@@ -421,22 +421,35 @@ class MeatSaleCalculateView(LoginRequiredMixin, View):
             )
 
         # ── Parse weights ───────────────────────────────────────────────────
+        # Mirrors MeatSaleForm.clean_weights: comma normalisation + collect
+        # all errors before returning so the user sees every problem at once.
         parsed = []
+        errors = []
         for i, line in enumerate(weights_raw.strip().splitlines(), 1):
             line = line.strip()
             if not line:
                 continue
+
+            normalised = line
+            if "," in normalised and "." not in normalised and normalised.count(",") == 1:
+                normalised = normalised.replace(",", ".")
+
             try:
-                weight = Decimal(line)
+                weight = Decimal(normalised)
+                if not weight.is_finite():
+                    raise InvalidOperation
             except InvalidOperation:
-                return JsonResponse(
-                    {"error": f"Line {i}: '{line}' is not a valid number."}, status=400
-                )
+                errors.append(f"Line {i}: '{line}' is not a valid number.")
+                continue
+
             if weight <= 0:
-                return JsonResponse(
-                    {"error": f"Line {i}: weight must be greater than zero."}, status=400
-                )
+                errors.append(f"Line {i}: weight must be greater than zero (got {line}).")
+                continue
+
             parsed.append(weight)
+
+        if errors:
+            return JsonResponse({"errors": errors}, status=400)
 
         if not parsed:
             return JsonResponse({"error": "Please enter at least one weight."}, status=400)

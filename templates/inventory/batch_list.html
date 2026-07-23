@@ -49,7 +49,7 @@
                             {% endif %}
                         </td>
                         <td>{{ batch.supplier|default:"—" }}</td>
-                        <td>{{ batch.purchase_date }}</td>
+                        <td data-order="{{ batch.purchase_date|date:'Y-m-d' }}">{{ batch.purchase_date }}</td>
                         <td class="text-right">
                             {% if batch.status == 'new' %}
                                 {{ batch.birds_count }}&nbsp;<span data-toggle="tooltip" title="Eggs purchased — awaiting incubation" style="cursor:default;">🥚</span>

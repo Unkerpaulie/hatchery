@@ -32,7 +32,7 @@
                 <tbody>
                 {% for expense in expenses %}
                     <tr>
-                        <td>{{ expense.date }}</td>
+                        <td data-order="{{ expense.date|date:'Y-m-d' }}">{{ expense.date }}</td>
                         <td>{{ expense.get_category_display }}</td>
                         <td>
                             {% if expense.batch %}

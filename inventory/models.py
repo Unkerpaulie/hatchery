@@ -519,6 +519,7 @@ class Expense(AuditedModel):
 
     class Category(models.TextChoices):
         CLEANING   = "cleaning",   "Cleaning"
+        CUSTOMS_EXCISE = "customs_excise", "Customs & Excise"
         ELECTRICITY = "electricity", "Electricity"
         EQUIPMENT   = "equipment",   "Equipment"
         FEED        = "feed",        "Feed"
@@ -527,6 +528,7 @@ class Expense(AuditedModel):
         MEDICINE    = "medicine",    "Medicine"
         PACKAGING   = "packaging",   "Packaging"
         PHONE       = "phone",       "Phone"
+        SERVICE_CHARGES = "service_charges", "Service Charges"
         SUPPLIES    = "supplies",    "Supplies"
         TRANSPORT   = "transport",   "Transport"
         OTHER       = "other",       "Other"

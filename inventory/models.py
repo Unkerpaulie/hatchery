@@ -199,6 +199,11 @@ class Batch(AuditedModel):
         help_text="The anchor date for age tracking (day 1). Set when the batch is "
                   "first HATCHED; back-calculated for purchased chick batches.",
     )
+    age_end_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date when aging stopped (set when batch is marked GROWN). "
+                  "Age freezes at this point rather than continuing to increment.",
+    )
     notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -312,13 +317,17 @@ class Batch(AuditedModel):
     def mark_grown(self, updated_by=None):
         """RAISING → GROWN. Chickens are now fully grown and ready for meat sale.
 
+        Sets ``age_end_date`` to today so the batch's age freezes at this point
+        rather than continuing to increment daily.
+
         ``updated_by`` should be ``request.user`` from the calling view.
         """
         if self.status != self.Status.RAISING:
             raise ValidationError("Only batches in 'raising' status can be marked as grown.")
         self.status = self.Status.GROWN
+        self.age_end_date = timezone.localdate()
         self.updated_by = updated_by
-        self.save(update_fields=["status", "updated_at", "updated_by"])
+        self.save(update_fields=["status", "age_end_date", "updated_at", "updated_by"])
 
     # ---- single-instance computed properties --------------------------------
     #
@@ -415,14 +424,23 @@ class Batch(AuditedModel):
 
     @property
     def current_age_days(self) -> int:
-        """Days since day_1_date. Returns 0 when not yet hatched."""
+        """Days since day_1_date. Returns 0 when not yet hatched.
+
+        If ``age_end_date`` is set (batch is GROWN), the age is calculated
+        up to that date rather than today — effectively freezing the age.
+        """
         if not self.day_1_date:
             return 0
-        return (timezone.localdate() - self.day_1_date).days
+        end = self.age_end_date or timezone.localdate()
+        return (end - self.day_1_date).days
 
     @property
     def current_age_display(self) -> str:
-        """Human-readable age: '—' before hatching, 'Xw Yd' after."""
+        """Human-readable age: '—' before hatching, 'Xw Yd' after.
+
+        Once the batch is GROWN the age is frozen at the value it had on
+        the ``age_end_date``.
+        """
         if self.status in (self.Status.NEW, self.Status.INCUBATING):
             return "—"
         days = self.current_age_days

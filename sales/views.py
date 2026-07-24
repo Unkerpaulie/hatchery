@@ -14,7 +14,7 @@ from django.http import HttpResponse, JsonResponse
 from core.views import AuditMixin
 from django.db.models import DecimalField, F, IntegerField, OuterRef, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
@@ -381,6 +381,81 @@ class MeatSaleCreateView(LoginRequiredMixin, CreateView):
             f"Batch #{self.object.batch_id}.",
         )
         return response
+
+
+class MeatSaleDetailView(LoginRequiredMixin, View):
+    """GET: return the modal HTML fragment with all line items for a meat sale."""
+
+    template_name = "sales/meat_sale_detail_modal.html"
+
+    def get(self, request, pk):
+        meat_sale = get_object_or_404(
+            MeatSale.objects.select_related("batch").prefetch_related("lines"),
+            pk=pk,
+        )
+        return render(request, self.template_name, {"meat_sale": meat_sale})
+
+
+class MeatSaleLineUpdateView(LoginRequiredMixin, View):
+    """HTMX POST: update a single MeatSaleLine's weight, return the updated row."""
+
+    template_name = "sales/meat_sale_line_row.html"
+
+    def post(self, request, pk):
+        line = get_object_or_404(MeatSaleLine.objects.select_related("meat_sale__batch"), pk=pk)
+        try:
+            new_weight = Decimal(request.POST.get("weight_lb", ""))
+            if new_weight <= 0 or not new_weight.is_finite():
+                raise ValueError
+        except (InvalidOperation, ValueError):
+            return HttpResponse(
+                f'<tr id="line-{pk}"><td colspan="4" class="text-danger">Invalid weight.</td></tr>'
+            )
+
+        line.weight_lb = new_weight
+        line.save(update_fields=["weight_lb"])
+        # Compute the line's position in the ordered queryset.
+        all_lines = list(line.meat_sale.lines.all())
+        try:
+            line_number = all_lines.index(line) + 1
+        except ValueError:
+            line_number = 1
+        return render(request, self.template_name, {"line": line, "meat_sale": line.meat_sale, "line_number": line_number})
+
+
+class MeatSaleLineDeleteView(LoginRequiredMixin, View):
+    """HTMX POST: delete a MeatSaleLine, return the updated modal body."""
+
+    template_name = "sales/meat_sale_detail_modal.html"
+
+    def post(self, request, pk):
+        line = get_object_or_404(MeatSaleLine.objects.select_related("meat_sale__batch"), pk=pk)
+        meat_sale = line.meat_sale
+        line.delete()
+        # Re-fetch with fresh prefetch
+        meat_sale = MeatSale.objects.select_related("batch").prefetch_related("lines").get(pk=meat_sale.pk)
+        return render(request, self.template_name, {"meat_sale": meat_sale})
+
+
+class MeatSaleLineCreateView(LoginRequiredMixin, View):
+    """HTMX POST: add a new line to a meat sale, return the updated modal body."""
+
+    template_name = "sales/meat_sale_detail_modal.html"
+
+    def post(self, request, meat_sale_pk):
+        meat_sale = get_object_or_404(MeatSale, pk=meat_sale_pk)
+        try:
+            weight = Decimal(request.POST.get("weight_lb", ""))
+            if weight <= 0 or not weight.is_finite():
+                raise ValueError
+        except (InvalidOperation, ValueError):
+            return HttpResponse(
+                '<div class="alert alert-danger">Invalid weight. Must be a positive number.</div>'
+            )
+
+        MeatSaleLine.objects.create(meat_sale=meat_sale, weight_lb=weight)
+        meat_sale = MeatSale.objects.select_related("batch").prefetch_related("lines").get(pk=meat_sale.pk)
+        return render(request, self.template_name, {"meat_sale": meat_sale})
 
 
 class MeatSaleCalculateView(LoginRequiredMixin, View):

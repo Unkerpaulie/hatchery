@@ -1,0 +1,28 @@
+{% load l10n %}<tr id="line-{{ line.pk }}">
+    <td class="text-center">{{ line_number|default:forloop.counter }}</td>
+    <td class="text-right">
+        <form hx-post="{% url 'sales:meat_saleline_update' line.pk %}"
+              hx-target="#line-{{ line.pk }}" hx-swap="outerHTML"
+              class="form-inline d-inline-flex justify-content-end">
+            {% csrf_token %}
+            <input type="number" name="weight_lb" step="0.01" min="0.01"
+                   value="{{ line.weight_lb|unlocalize }}"
+                   class="form-control form-control-sm text-right"
+                   style="width:100px;" required>
+            <button type="submit" class="btn btn-sm btn-link text-success p-0 ml-1" title="Save">
+                <i class="fas fa-save"></i>
+            </button>
+        </form>
+    </td>
+    <td class="text-right">${{ line.sale_price|floatformat:2 }}</td>
+    <td class="text-center">
+        <a href="#"
+           class="btn btn-sm btn-link text-danger p-0"
+           hx-post="{% url 'sales:meat_saleline_delete' line.pk %}"
+           hx-target="closest .modal-content" hx-swap="outerHTML"
+           hx-confirm="Delete this chicken ({{ line.weight_lb|floatformat:2 }} lbs)?"
+           title="Delete">
+            <i class="fas fa-trash"></i>
+        </a>
+    </td>
+</tr>

@@ -22,9 +22,13 @@ urlpatterns = [
     path("<int:pk>/invoice/",        views.SaleInvoiceView.as_view(), name="sale_invoice"),
 
     # Meat sales (daily retail)
-    path("meat/",            views.MeatSaleListView.as_view(),      name="meat_sale_list"),
-    path("meat/new/",        views.MeatSaleCreateView.as_view(),    name="meat_sale_create"),
-    path("meat/calculate/",  views.MeatSaleCalculateView.as_view(), name="meat_sale_calculate"),
+    path("meat/",                 views.MeatSaleListView.as_view(),        name="meat_sale_list"),
+    path("meat/new/",             views.MeatSaleCreateView.as_view(),      name="meat_sale_create"),
+    path("meat/calculate/",       views.MeatSaleCalculateView.as_view(),   name="meat_sale_calculate"),
+    path("meat/<int:pk>/detail/", views.MeatSaleDetailView.as_view(),      name="meat_sale_detail"),
+    path("meat/lines/<int:pk>/update/", views.MeatSaleLineUpdateView.as_view(), name="meat_saleline_update"),
+    path("meat/lines/<int:pk>/delete/", views.MeatSaleLineDeleteView.as_view(), name="meat_saleline_delete"),
+    path("meat/<int:meat_sale_pk>/lines/add/", views.MeatSaleLineCreateView.as_view(), name="meat_saleline_create"),
 
     # Sale lines (operated from the sale detail page)
     path("<int:sale_pk>/lines/add/", views.SaleLineCreateView.as_view(), name="saleline_create"),

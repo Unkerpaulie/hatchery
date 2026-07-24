@@ -190,6 +190,11 @@ class MeatSaleLine(models.Model):
     def __str__(self):
         return f"{self.weight_lb} lb (MeatSale #{self.meat_sale_id})"
 
+    @property
+    def sale_price(self):
+        """Sale price for this individual bird (weight × price_per_lb)."""
+        return self.weight_lb * self.meat_sale.price_per_lb
+
 
 class Adjustment(AuditedModel):
     """Non-sale removal from inventory (death, donation, personal use, etc.).

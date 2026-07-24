@@ -26,6 +26,7 @@
                         <th class="text-right">Total Weight (lbs)</th>
                         <th class="text-right">Price / lb</th>
                         <th class="text-right">Revenue</th>
+                        <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -41,14 +42,38 @@
                         <td class="text-right">{{ ms.total_weight|floatformat:2 }}</td>
                         <td class="text-right">${{ ms.price_per_lb|floatformat:2 }}</td>
                         <td class="text-right">${{ ms.total_revenue|floatformat:2 }}</td>
+                        <td class="text-center">
+                            <a href="#"
+                               class="btn btn-sm btn-info"
+                               title="View / Edit Details"
+                               data-toggle="modal"
+                               data-target="#meatSaleDetailModal"
+                               hx-get="{% url 'sales:meat_sale_detail' ms.pk %}"
+                               hx-target="#meatSaleDetailModal .modal-content"
+                               hx-trigger="click">
+                                <i class="fas fa-list"></i>
+                            </a>
+                        </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted">No meat sales recorded yet.</td>
+                        <td colspan="7" class="text-center text-muted">No meat sales recorded yet.</td>
                     </tr>
                 {% endfor %}
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+{# ── Detail / Edit Modal ─────────────────────────────────────────────────── #}
+<div class="modal fade" id="meatSaleDetailModal" tabindex="-1" role="dialog"
+     aria-labelledby="meatSaleDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                <p class="text-muted mt-2">Loading details…</p>
+            </div>
         </div>
     </div>
 </div>

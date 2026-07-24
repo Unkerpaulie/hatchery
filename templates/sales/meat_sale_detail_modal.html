@@ -1,0 +1,49 @@
+{% load static %}
+<div class="modal-header bg-info text-white">
+    <h5 class="modal-title">
+        <i class="fas fa-drumstick-bite mr-1"></i>
+        Meat Sale #{{ meat_sale.pk }} — Batch #{{ meat_sale.batch_id }}
+    </h5>
+    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+    </button>
+</div>
+<div class="modal-body p-0" style="max-height:55vh; overflow-y:auto;">
+    <table class="table table-sm table-bordered mb-0">
+        <thead class="thead-light">
+            <tr>
+                <th class="text-center" style="width:50px;">#</th>
+                <th class="text-right">Weight (lbs)</th>
+                <th class="text-right">Sale Price</th>
+                <th class="text-center" style="width:120px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="modalTableBody" hx-target="closest .modal-content" hx-swap="outerHTML">
+            {% for line in meat_sale.lines.all %}
+                {% include "sales/meat_sale_line_row.html" with line=line meat_sale=meat_sale %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="modal-footer d-flex align-items-center">
+    <div class="text-left mr-auto">
+        <strong>{{ meat_sale.lines.all|length }}</strong> chicken(s) &nbsp;|&nbsp;
+        Total weight: <strong><span id="totalWeight">{{ meat_sale.total_weight|floatformat:2 }}</span> lbs</strong> &nbsp;|&nbsp;
+        Total revenue: <strong>$<span id="totalRevenue">{{ meat_sale.total_revenue|floatformat:2 }}</span></strong>
+    </div>
+    <div>
+        <form hx-post="{% url 'sales:meat_saleline_create' meat_sale.pk %}"
+              hx-target="closest .modal-content" hx-swap="outerHTML"
+              class="form-inline d-inline-flex align-items-center">
+            {% csrf_token %}
+            <input type="number" name="weight_lb" step="0.01" min="0.01" placeholder="Weight"
+                   class="form-control form-control-sm mr-1" style="width:100px;" required>
+            <button type="submit" class="btn btn-sm btn-success" title="Add chicken">
+                <i class="fas fa-plus"></i>
+            </button>
+        </form>
+    </div>
+    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+        <i class="fas fa-times mr-1"></i> Close
+    </button>
+</div>

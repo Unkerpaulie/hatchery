@@ -173,12 +173,13 @@ class SaleLineForm(forms.ModelForm):
 class AdjustmentForm(forms.ModelForm):
     class Meta:
         model = Adjustment
-        fields = ["batch", "date", "quantity", "reason"]
+        fields = ["batch", "date", "quantity", "adjustment_type", "reason"]
         widgets = {
-            "batch":    forms.Select(attrs=_SELECT),
-            "date":     forms.DateInput(attrs=_DATE),
-            "quantity": forms.NumberInput(attrs=_NUMBER),
-            "reason":   forms.TextInput(attrs=_TEXT),
+            "batch":           forms.Select(attrs=_SELECT),
+            "date":            forms.DateInput(attrs=_DATE),
+            "quantity":        forms.NumberInput(attrs=_NUMBER),
+            "adjustment_type": forms.Select(attrs=_SELECT),
+            "reason":          forms.TextInput(attrs=_TEXT),
         }
 
     def __init__(self, *args, **kwargs):

@@ -192,15 +192,26 @@ class MeatSaleLine(models.Model):
 
 
 class Adjustment(AuditedModel):
-    """Non-sale removal from inventory (personal use, gifts, mortality, etc.).
+    """Non-sale removal from inventory (death, donation, personal use, etc.).
     Created from the Sales section per the PRD clarification.
     """
+
+    class AdjustmentType(models.TextChoices):
+        DEATH        = "death",        "Death"
+        DONATION     = "donation",     "Donation"
+        PERSONAL_USE = "personal_use", "Personal Use"
 
     batch = models.ForeignKey(
         "inventory.Batch", on_delete=models.CASCADE, related_name="adjustments"
     )
     date = models.DateField(default=timezone.localdate)
     quantity = models.PositiveIntegerField()
+    adjustment_type = models.CharField(
+        max_length=20,
+        choices=AdjustmentType.choices,
+        default=AdjustmentType.DEATH,
+        help_text="Category of inventory adjustment.",
+    )
     reason = models.CharField(max_length=200)
 
     created_at = models.DateTimeField(auto_now_add=True)

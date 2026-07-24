@@ -40,7 +40,7 @@ class SaleLineAdmin(admin.ModelAdmin):
 
 @admin.register(Adjustment)
 class AdjustmentAdmin(admin.ModelAdmin):
-    list_display = ("batch", "date", "quantity", "reason")
+    list_display = ("batch", "date", "quantity", "adjustment_type", "reason")
     list_select_related = ("batch",)
     readonly_fields = ("created_by", "updated_by", "created_at")
 

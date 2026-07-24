@@ -28,11 +28,12 @@ fi
 GUNICORN_SERVICE="${GUNICORN_SERVICE_NAME:-gunicorn-hatchery}"
 APP_USER="${APP_USER:-hatchery}"
 
-# Ensure Gunicorn log files exist and are owned by the app user.
+# Ensure Gunicorn and Django log files exist and are owned by the app user.
 # /var/log is root-owned so only sudo can create files there.
 for log_file in \
     "/var/log/${GUNICORN_SERVICE}-access.log" \
-    "/var/log/${GUNICORN_SERVICE}-error.log"; do
+    "/var/log/${GUNICORN_SERVICE}-error.log" \
+    "/var/log/django-hatchery.log"; do
     if [ ! -f "${log_file}" ]; then
         sudo touch "${log_file}"
         sudo chown "${APP_USER}:${APP_USER}" "${log_file}"

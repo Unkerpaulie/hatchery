@@ -125,3 +125,139 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "core:login"
 LOGIN_REDIRECT_URL = "core:dashboard"
 LOGOUT_REDIRECT_URL = "core:login"
+
+
+# ────────────────────────────────────────────────────────────────────────
+# Logging — production-grade configuration that captures errors to both
+# a persistent file AND stderr (where Gunicorn picks them up).
+#
+# The Gunicorn systemd service already writes stderr to
+# /var/log/gunicorn-hatchery-error.log via --error-logfile, so any log
+# record that reaches stderr will end up in that file as well.
+#
+# Additionally we write directly to /var/log/django-hatchery.log so you
+# have a clean Django-only audit trail separate from Gunicorn's own logs.
+# ────────────────────────────────────────────────────────────────────────
+
+# Path for the Django application log file.
+DJANGO_LOG_DIR = Path("/var/log")
+DJANGO_LOG_FILE = DJANGO_LOG_DIR / "django-hatchery.log"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": (
+                "{levelname} {asctime} {module} {process:d} {thread:d}  "
+                "{message}"
+            ),
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {asctime} {message}",
+            "style": "{",
+        },
+        "traceback": {
+            "format": "{levelname} {asctime} {message}\n{exc_info}",
+            "style": "{",
+        },
+    },
+    "filters": {
+        "require_debug_false": {
+            "()": "django.utils.log.RequireDebugFalse",
+        },
+        "require_debug_true": {
+            "()": "django.utils.log.RequireDebugTrue",
+        },
+    },
+    "handlers": {
+        # Writes to stderr — always active. Gunicorn captures stderr into
+        # /var/log/gunicorn-hatchery-error.log.  This is the quickest way
+        # to see errors via "sudo journalctl -u gunicorn-hatchery -f".
+        "console": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
+            "formatter": "verbose",
+        },
+        # Writes to a persistent Django-specific file.  In production the
+        # file is created by build.sh (or manually) with hatchery ownership.
+        # This survives Gunicorn restarts and log rotations.
+        "django_file": {
+            "level": "ERROR",
+            "class": "logging.handlers.WatchedFileHandler",
+            "filename": str(DJANGO_LOG_FILE),
+            "formatter": "verbose",
+        },
+        # Separate file handler that catches *everything* at WARNING+
+        # for operational awareness (e.g. 404s, permission denials).
+        "django_file_warn": {
+            "level": "WARNING",
+            "class": "logging.handlers.WatchedFileHandler",
+            "filename": str(DJANGO_LOG_FILE),
+            "formatter": "verbose",
+        },
+        # Email admins on production-critical errors (requires ADMINS setting).
+        "mail_admins": {
+            "level": "ERROR",
+            "filters": ["require_debug_false"],
+            "class": "django.utils.log.AdminEmailHandler",
+        },
+    },
+    "loggers": {
+        # ── Root logger ──────────────────────────────────────────────
+        # Catches anything not matched by a more specific logger below.
+        "": {
+            "level": "WARNING",
+            "handlers": ["console"],
+        },
+        # ── Django request logger ────────────────────────────────────
+        # This is the logger Django itself uses when DEBUG=False and a
+        # view raises an unhandled exception.  You MUST see this output.
+        "django.request": {
+            "level": "ERROR",
+            "handlers": ["console", "django_file"],
+            "propagate": False,
+        },
+        # ── Django server logger ─────────────────────────────────────
+        # Covers the runserver / WSGI / ASGI layer.
+        "django.server": {
+            "level": "ERROR",
+            "handlers": ["console", "django_file"],
+            "propagate": False,
+        },
+        # ── django.db.backends ───────────────────────────────────────
+        # Uncomment temporarily to debug slow / failing SQL queries.
+        # "django.db.backends": {
+        #     "level": "WARNING",
+        #     "handlers": ["console"],
+        #     "propagate": False,
+        # },
+        # ── django.security ──────────────────────────────────────────
+        # Covers SuspiciousOperation and related security events.
+        "django.security": {
+            "level": "WARNING",
+            "handlers": ["console", "django_file_warn"],
+            "propagate": False,
+        },
+        # ── Application-level loggers ────────────────────────────────
+        # You can use  import logging; logger = logging.getLogger(__name__)
+        # in any view / model / utility to emit messages here.
+        "core": {
+            "level": "WARNING",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+        "inventory": {
+            "level": "WARNING",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+        "sales": {
+            "level": "WARNING",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+    },
+}

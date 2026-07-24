@@ -23,3 +23,10 @@ SECURE_HSTS_PRELOAD            = env.bool("SECURE_HSTS_PRELOAD",            defa
 
 # WhiteNoise serves the compressed/hashed static manifest in production.
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# ─── Error reporting ──────────────────────────────────────────────────────────
+# When DEBUG=False, Django emails ERROR-level logs to these addresses via the
+# mail_admins logging handler (configured in base.py).  Set at least one email
+# to receive tracebacks for every 500 error in production.
+# ADMINS = [("Your Name", "you@example.com")]
+# SERVER_EMAIL = "root@hatchery.islan.dev"   # sender address for those emails

@@ -26,6 +26,13 @@ fi
 GUNICORN_SERVICE="${GUNICORN_SERVICE_NAME:-gunicorn-hatchery}"
 APP_USER="${APP_USER:-hatchery}"
 
+# Ensure Django log file exists (Gunicorn log files created by build.sh on first deploy).
+DJANGO_LOG_FILE="/var/log/django-hatchery.log"
+if [ ! -f "${DJANGO_LOG_FILE}" ]; then
+    sudo touch "${DJANGO_LOG_FILE}"
+    sudo chown "${APP_USER}:${APP_USER}" "${DJANGO_LOG_FILE}"
+fi
+
 sudo -H -u "${APP_USER}" git -C "${PROJECT_DIR}" pull --ff-only
 
 sudo -H -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${PROJECT_DIR}/requirements.txt"

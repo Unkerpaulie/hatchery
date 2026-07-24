@@ -33,7 +33,7 @@ APP_USER="${APP_USER:-hatchery}"
 for log_file in \
     "/var/log/${GUNICORN_SERVICE}-access.log" \
     "/var/log/${GUNICORN_SERVICE}-error.log" \
-    "/var/log/django-hatchery.log"; do
+    "${DJANGO_LOG_FILE:-/var/log/django-hatchery.log}"; do
     if [ ! -f "${log_file}" ]; then
         sudo touch "${log_file}"
         sudo chown "${APP_USER}:${APP_USER}" "${log_file}"

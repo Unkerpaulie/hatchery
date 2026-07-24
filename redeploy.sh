@@ -27,7 +27,7 @@ GUNICORN_SERVICE="${GUNICORN_SERVICE_NAME:-gunicorn-hatchery}"
 APP_USER="${APP_USER:-hatchery}"
 
 # Ensure Django log file exists (Gunicorn log files created by build.sh on first deploy).
-DJANGO_LOG_FILE="/var/log/django-hatchery.log"
+DJANGO_LOG_FILE="${DJANGO_LOG_FILE:-/var/log/django-hatchery.log}"
 if [ ! -f "${DJANGO_LOG_FILE}" ]; then
     sudo touch "${DJANGO_LOG_FILE}"
     sudo chown "${APP_USER}:${APP_USER}" "${DJANGO_LOG_FILE}"

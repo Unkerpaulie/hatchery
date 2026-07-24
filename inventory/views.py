@@ -119,7 +119,10 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "batch"
 
     def get_queryset(self):
-        return Batch.objects.select_related("supplier").prefetch_related("hatches")
+        return Batch.objects.select_related("supplier").prefetch_related(
+            "hatches",
+            "expenses",
+        )
 
     def get_context_data(self, **kwargs):
         from django.utils import timezone
@@ -144,6 +147,9 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
                 .select_related("sale__customer")
                 .order_by("sale__date")
             )
+
+        # Expenses attributed to this batch.
+        ctx["expenses"] = batch.expenses.all().order_by("-date", "-id")
         return ctx
 
 

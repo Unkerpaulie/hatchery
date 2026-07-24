@@ -1,4 +1,4 @@
-{% load static %}
+{% load static custom_filters %}
 <div class="modal-header bg-info text-white">
     <h5 class="modal-title">
         <i class="fas fa-drumstick-bite mr-1"></i>
@@ -29,7 +29,7 @@
     <div class="text-left mr-auto">
         <strong>{{ meat_sale.lines.all|length }}</strong> chicken(s) &nbsp;|&nbsp;
         Total weight: <strong><span id="totalWeight">{{ meat_sale.total_weight|floatformat:2 }}</span> lbs</strong> &nbsp;|&nbsp;
-        Total revenue: <strong>$<span id="totalRevenue">{{ meat_sale.total_revenue|floatformat:2 }}</span></strong>
+Total revenue: <strong>$<span id="totalRevenue">{{ meat_sale.total_revenue|currency_comma }}</span></strong>
     </div>
     <div>
         <form hx-post="{% url 'sales:meat_saleline_create' meat_sale.pk %}"

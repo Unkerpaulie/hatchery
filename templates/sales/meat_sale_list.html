@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}Meat Sales · Hatchery{% endblock %}
 
 {% block extra_css %}
@@ -40,8 +40,8 @@
                         </td>
                         <td class="text-right">{{ ms.chicken_count }}</td>
                         <td class="text-right">{{ ms.total_weight|floatformat:2 }}</td>
-                        <td class="text-right">${{ ms.price_per_lb|floatformat:2 }}</td>
-                        <td class="text-right">${{ ms.total_revenue|floatformat:2 }}</td>
+                        <td class="text-right">${{ ms.price_per_lb|currency_comma }}</td>
+                        <td class="text-right">${{ ms.total_revenue|currency_comma }}</td>
                         <td class="text-center">
                             <a href="#"
                                class="btn btn-sm btn-info"

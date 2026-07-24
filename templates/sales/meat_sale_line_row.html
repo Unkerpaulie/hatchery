@@ -1,4 +1,4 @@
-{% load l10n %}<tr id="line-{{ line.pk }}">
+{% load l10n custom_filters %}<tr id="line-{{ line.pk }}">
     <td class="text-center">{{ line_number|default:forloop.counter }}</td>
     <td class="text-right">
         <form hx-post="{% url 'sales:meat_saleline_update' line.pk %}"
@@ -14,7 +14,7 @@
             </button>
         </form>
     </td>
-    <td class="text-right">${{ line.sale_price|floatformat:2 }}</td>
+<td class="text-right">${{ line.sale_price|currency_comma }}</td>
     <td class="text-center">
         <a href="#"
            class="btn btn-sm btn-link text-danger p-0"

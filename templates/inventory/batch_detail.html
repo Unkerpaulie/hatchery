@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}Batch #{{ batch.pk }} · Hatchery{% endblock %}
 
 {% block extra_css %}
@@ -55,8 +55,8 @@
                     <dt class="col-sm-5">Age at Purchase</dt>
                     <dd class="col-sm-7">{{ batch.age_at_purchase }} day{{ batch.age_at_purchase|pluralize }}</dd>
                     {% endif %}
-                    <dt class="col-sm-5">Total Cost</dt>
-                    <dd class="col-sm-7">${{ batch.total_cost|floatformat:2 }}</dd>
+<dt class="col-sm-5">Total Cost</dt>
+<dd class="col-sm-7">${{ batch.total_cost|currency_comma }}</dd>
                     {% if batch.incubation_start_date %}
                     <dt class="col-sm-5">Incubation Started</dt>
                     <dd class="col-sm-7">{{ batch.incubation_start_date }}</dd>
@@ -280,7 +280,7 @@
             <div class="card-body"><div class="row no-gutters align-items-center">
                 <div class="col mr-2">
                     <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Revenue</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ batch.revenue|floatformat:2 }}</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ batch.revenue|currency_comma }}</div>
                 </div><div class="col-auto"><i class="fas fa-dollar-sign fa-2x text-gray-300"></i></div>
             </div></div>
         </div>
@@ -290,7 +290,7 @@
             <div class="card-body"><div class="row no-gutters align-items-center">
                 <div class="col mr-2">
                     <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Profit</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ batch.profit|floatformat:2 }}</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ batch.profit|currency_comma }}</div>
                 </div><div class="col-auto"><i class="fas fa-chart-line fa-2x text-gray-300"></i></div>
             </div></div>
         </div>
@@ -338,8 +338,8 @@
                         <td>{{ line.sale.date }}</td>
                         <td>{{ line.sale.customer }}</td>
                         <td class="text-right">{{ line.quantity }}</td>
-                        <td class="text-right">${{ line.unit_price|floatformat:2 }}</td>
-                        <td class="text-right">${{ line.line_total|floatformat:2 }}</td>
+                        <td class="text-right">${{ line.unit_price|currency_comma }}</td>
+                        <td class="text-right">${{ line.line_total|currency_comma }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
@@ -375,7 +375,7 @@
                         <td>{{ expense.get_category_display }}</td>
                         <td>{{ expense.description }}</td>
                         <td>{{ expense.supplier|default:"—" }}</td>
-                        <td class="text-right">${{ expense.amount|floatformat:2 }}</td>
+                        <td class="text-right">${{ expense.amount|currency_comma }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>

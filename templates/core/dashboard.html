@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}Dashboard · Hatchery{% endblock %}
 
 {% block content %}
@@ -60,7 +60,7 @@
             <div class="card-body"><div class="row no-gutters align-items-center">
                 <div class="col mr-2">
                     <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Costs</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ total_costs|floatformat:2 }}</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ total_costs|currency_comma }}</div>
                 </div>
                 <div class="col-auto"><i class="fas fa-receipt fa-2x" style="color: #4E73DF;"></i></div>
             </div></div>
@@ -72,7 +72,7 @@
             <div class="card-body"><div class="row no-gutters align-items-center">
                 <div class="col mr-2">
                     <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Revenue</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ total_revenue|floatformat:2 }}</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">${{ total_revenue|currency_comma }}</div>
                 </div>
                 <div class="col-auto"><i class="fas fa-dollar-sign fa-2x" style="color: #1CC88A;"></i></div>
             </div></div>

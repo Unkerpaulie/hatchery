@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}Expenses · Hatchery{% endblock %}
 
 {% block extra_css %}
@@ -51,7 +51,7 @@
                             {% endif %}
                         </td>
                         <td>{{ expense.description }}</td>
-                        <td class="text-right">${{ expense.amount|floatformat:2 }}</td>
+                        <td class="text-right">${{ expense.amount|currency_comma }}</td>
                         <td class="text-center">
                             <a href="{% url 'inventory:expense_update' expense.pk %}"
                                class="btn btn-sm btn-info" title="Edit">

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}Delete Batch #{{ batch.pk }} · Hatchery{% endblock %}
 
 {% block content %}
@@ -36,7 +37,7 @@
             <dt class="col-sm-4">{{ batch.get_purchased_as_display }} Quantity</dt>
             <dd class="col-sm-8">{{ batch.initial_quantity }}</dd>
             <dt class="col-sm-4">Total Cost</dt>
-            <dd class="col-sm-8">${{ batch.total_cost|floatformat:2 }}</dd>
+            <dd class="col-sm-8">${{ batch.total_cost|currency_comma }}</dd>
         </dl>
     </div>
 </div>
@@ -99,7 +100,7 @@
                         {% else %}<span class="badge badge-secondary">Cancelled</span>{% endif %}
                     </td>
                     <td class="text-right">{{ line.quantity }}</td>
-                    <td class="text-right">${{ line.unit_price|floatformat:2 }}</td>
+                    <td class="text-right">${{ line.unit_price|currency_comma }}</td>
                 </tr>
                 {% endfor %}
                 </tbody>

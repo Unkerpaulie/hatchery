@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}Sale #{{ sale.pk }} · Hatchery{% endblock %}
 
 {% block content %}
@@ -93,8 +93,8 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td class="text-right">${{ line.unit_price|floatformat:2 }}</td>
-                        <td class="text-right">${{ line.line_total|floatformat:2 }}</td>
+                        <td class="text-right">${{ line.unit_price|currency_comma }}</td>
+                        <td class="text-right">${{ line.line_total|currency_comma }}</td>
                         {% if sale.status == "pending" %}
                         <td class="text-center">
                             <button class="btn btn-xs btn-danger" type="button"
@@ -116,7 +116,7 @@
                         <td>Total</td>
                         <td class="text-right">{{ sale.total_quantity }}</td>
                         <td></td>
-                        <td class="text-right">${{ sale.total_revenue|floatformat:2 }}</td>
+                        <td class="text-right">${{ sale.total_revenue|currency_comma }}</td>
                         {% if sale.status == "pending" %}<td></td>{% endif %}
                     </tr>
                 </tfoot>

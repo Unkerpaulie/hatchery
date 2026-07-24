@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}{{ customer.name }} · Hatchery{% endblock %}
 
 {% block content %}
@@ -115,7 +116,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-right">{{ sale.total_quantity }}</td>
-                                <td class="text-right">${{ sale.total_revenue|floatformat:2 }}</td>
+                                <td class="text-right">${{ sale.total_revenue|currency_comma }}</td>
                                 <td class="text-center">
                                     <a href="{% url 'sales:sale_detail' sale.pk %}"
                                        class="btn btn-sm btn-primary py-0 px-2" title="View sale">
@@ -136,7 +137,7 @@
                                     {{ sales|length }} sale{{ sales|length|pluralize }}
                                 </td>
                                 <td class="text-right">{{ grand_total_quantity }}</td>
-                                <td class="text-right">${{ grand_total_revenue|floatformat:2 }}</td>
+                                <td class="text-right">${{ grand_total_revenue|currency_comma }}</td>
                                 <td></td>
                             </tr>
                         </tfoot>

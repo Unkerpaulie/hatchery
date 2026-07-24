@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}Sales · Hatchery{% endblock %}
 
 {% block extra_css %}
@@ -39,7 +39,7 @@
                         <td data-order="{{ sale.date|date:'Y-m-d' }}">{{ sale.date }}</td>
                         <td>{{ sale.customer }}</td>
                         <td class="text-right">{{ sale.total_quantity }}</td>
-                        <td class="text-right">${{ sale.total_revenue|floatformat:2 }}</td>
+                        <td class="text-right">${{ sale.total_revenue|currency_comma }}</td>
                         <td class="text-center">
                             {% if sale.status == "pending" %}
                                 <span class="badge badge-warning">Pending</span>

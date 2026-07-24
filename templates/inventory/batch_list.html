@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block title %}Batches · Hatchery{% endblock %}
 
 {% block extra_css %}
@@ -64,9 +64,9 @@
                             {% endif %}
                         </td>
                         <td class="text-right">{{ batch.current_age_display }}</td>
-                        <td class="text-right">${{ batch.total_cost|floatformat:2 }}</td>
+                        <td class="text-right">${{ batch.total_cost|currency_comma }}</td>
                         <td class="text-right">
-                            {% if batch.revenue %}<span class="text-success">${{ batch.revenue|floatformat:2 }}</span>{% else %}—{% endif %}
+                            {% if batch.revenue %}<span class="text-success">${{ batch.revenue|currency_comma }}</span>{% else %}—{% endif %}
                         </td>
                         <td class="text-center">
                             <a href="{% url 'inventory:batch_detail' batch.pk %}"

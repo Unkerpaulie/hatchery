@@ -1,21 +1,28 @@
-{# Reusable payment-capture fields included in both the finalize modal
-   (pending sales) and the update-payment modal (finalized sales).
-   The JS in payment_fields_js.html wires the toggle behaviour.
-#}
+{% comment %}
+Reusable payment-capture fields included in both the finalize modal
+(pending sales) and the update-payment modal (finalized sales).
+The JS in payment_fields_js.html wires the toggle behaviour.
 
-{# ── Payment method ──────────────────────────────────────────────────── #}
+Requires `sale` in context — choices are read from Sale.PaymentMethod so
+adding a new choice to the model automatically appears here.
+Optional: `total` (decimal) — stamped as data-total on the amount input.
+{% endcomment %}
+
+{# ── Payment method — dynamic from Sale.PaymentMethod.choices ─────────── #}
 <div class="form-group">
     <label class="font-weight-bold">Payment Method <span class="text-danger">*</span></label>
     <select name="payment_method" class="form-control" required>
         <option value="">— Select —</option>
-        <option value="cash">Cash</option>
-        <option value="debit_card">Debit Card</option>
-        <option value="credit_card">Credit Card</option>
-        <option value="bank_transfer">Bank Transfer</option>
+        {% for value, label in sale.PaymentMethod.choices %}
+        <option value="{{ value }}"
+            {% if sale.payment_method == value %}selected{% endif %}>
+            {{ label }}
+        </option>
+        {% endfor %}
     </select>
 </div>
 
-{# ── Full / Partial toggle ───────────────────────────────────────────── #}
+{# ── Full / Partial toggle ────────────────────────────────────────────── #}
 <div class="form-group">
     <label class="font-weight-bold">Payment Type</label>
     <div class="d-flex align-items-center">
@@ -28,7 +35,7 @@
             </label>
         </div>
     </div>
-    <small class="form-text text-muted js-toggle-hint">
+    <small class="form-text text-muted">
         Toggle on to enter a partial amount; leave off to record full payment.
     </small>
 </div>

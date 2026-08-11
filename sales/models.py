@@ -43,6 +43,7 @@ class Sale(AuditedModel):
 
     class Status(models.TextChoices):
         PENDING   = "pending",   "Pending"
+        FINALIZED = "finalized", "Finalized"
         CLOSED    = "closed",    "Closed"
         CANCELLED = "cancelled", "Cancelled"
 
@@ -53,16 +54,24 @@ class Sale(AuditedModel):
         BANK_TRANSFER = "bank_transfer", "Bank Transfer"
         BANK_DEPOSIT  = "bank_deposit", "Bank Deposit"
 
-    customer       = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="sales")
-    date           = models.DateField(default=timezone.localdate)
-    notes          = models.TextField(blank=True)
-    status         = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
-    payment_method = models.CharField(
+    customer         = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="sales")
+    date             = models.DateField(default=timezone.localdate)
+    notes            = models.TextField(blank=True)
+    status           = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    payment_method   = models.CharField(
         max_length=16,
         choices=PaymentMethod.choices,
         blank=True,
         default="",
-        help_text="How the customer paid (recorded when the sale is closed).",
+        help_text="How the customer paid (recorded when the sale is finalized or closed).",
+    )
+    payment_received = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Amount actually collected. None while pending; set at finalization.",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -82,6 +91,15 @@ class Sale(AuditedModel):
     def total_revenue(self) -> Decimal:
         agg = self.lines.aggregate(s=Sum(F("quantity") * F("unit_price")))["s"]
         return agg or Decimal("0")
+
+    @cached_property
+    def balance(self) -> Decimal:
+        """Outstanding amount owed. Zero for fully-paid or pending sales.
+        Never stored — always derived from total_revenue and payment_received.
+        """
+        if self.payment_received is None:
+            return Decimal("0")
+        return max(self.total_revenue - self.payment_received, Decimal("0"))
 
 
 class SaleLine(AuditedModel):
@@ -119,14 +137,14 @@ class SaleLine(AuditedModel):
         if self.batch_id is None:
             return
 
-        # Only enforce the inventory ceiling once the sale is CLOSED.
-        # For PENDING sales the line is a draft; SaleCloseView validates
+        # Only enforce the inventory ceiling once the sale is FINALIZED or CLOSED.
+        # For PENDING sales the line is a draft; SaleFinalizeView validates
         # the ceiling for all lines before committing the status change.
         if self.sale_id:
             sale_status = Sale.objects.filter(pk=self.sale_id).values_list(
                 "status", flat=True
             ).first()
-            if sale_status != Sale.Status.CLOSED:
+            if sale_status not in (Sale.Status.FINALIZED, Sale.Status.CLOSED):
                 return
 
         prior_quantity = 0

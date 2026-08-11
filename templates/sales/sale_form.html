@@ -1,9 +1,16 @@
 {% extends "base.html" %}
-{% block title %}New Sale · Hatchery{% endblock %}
+{% block title %}{% if sale %}Edit Sale #{{ sale.pk }}{% else %}New Sale{% endif %} · Hatchery{% endblock %}
 
 {% block content %}
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">New Sale</h1>
+    <h1 class="h3 mb-0 text-gray-800">
+        {% if sale %}Edit Sale #{{ sale.pk }}{% else %}New Sale{% endif %}
+    </h1>
+    {% if sale %}
+    <a href="{% url 'sales:sale_detail' sale.pk %}" class="btn btn-sm btn-secondary shadow-sm">
+        <i class="fas fa-arrow-left fa-sm"></i> Back to Sale
+    </a>
+    {% endif %}
 </div>
 
 <div class="card shadow mb-4">
@@ -43,9 +50,13 @@
             <hr>
             <div class="d-flex justify-content-end">
                 <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-arrow-right mr-1"></i> Create &amp; Add Chicks
+                    {% if sale %}
+                        <i class="fas fa-save mr-1"></i> Save Changes
+                    {% else %}
+                        <i class="fas fa-arrow-right mr-1"></i> Create &amp; Add Chicks
+                    {% endif %}
                 </button>
-                <a href="{% url 'sales:sale_list' %}" class="btn btn-danger ml-2">Cancel</a>
+                <a href="{% if sale %}{% url 'sales:sale_detail' sale.pk %}{% else %}{% url 'sales:sale_list' %}{% endif %}" class="btn btn-danger ml-2">Cancel</a>
             </div>
         </form>
     </div>

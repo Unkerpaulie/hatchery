@@ -54,6 +54,10 @@
                                class="btn btn-sm btn-primary" title="View">
                                 <i class="fas fa-eye"></i>
                             </a>
+                            <a href="{% url 'sales:sale_update' sale.pk %}"
+                               class="btn btn-sm btn-warning" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
                         </td>
                     </tr>
                 {% empty %}

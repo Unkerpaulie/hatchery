@@ -128,6 +128,20 @@ class SaleCreateView(AuditMixin, LoginRequiredMixin, CreateView):
         return reverse("sales:sale_detail", kwargs={"pk": self.object.pk})
 
 
+class SaleUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
+    model = Sale
+    form_class = SaleForm
+    template_name = "sales/sale_form.html"
+    context_object_name = "sale"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Sale updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("sales:sale_detail", kwargs={"pk": self.object.pk})
+
+
 class SaleDetailView(LoginRequiredMixin, DetailView):
     template_name = "sales/sale_detail.html"
     context_object_name = "sale"

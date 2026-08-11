@@ -46,10 +46,23 @@ class Sale(AuditedModel):
         CLOSED    = "closed",    "Closed"
         CANCELLED = "cancelled", "Cancelled"
 
-    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="sales")
-    date     = models.DateField(default=timezone.localdate)
-    notes    = models.TextField(blank=True)
-    status   = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    class PaymentMethod(models.TextChoices):
+        CASH          = "cash",          "Cash"
+        DEBIT_CARD    = "debit_card",    "Debit Card"
+        CREDIT_CARD   = "credit_card",   "Credit Card"
+        BANK_TRANSFER = "bank_transfer", "Bank Transfer"
+
+    customer       = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="sales")
+    date           = models.DateField(default=timezone.localdate)
+    notes          = models.TextField(blank=True)
+    status         = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    payment_method = models.CharField(
+        max_length=16,
+        choices=PaymentMethod.choices,
+        blank=True,
+        default="",
+        help_text="How the customer paid (recorded when the sale is closed).",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

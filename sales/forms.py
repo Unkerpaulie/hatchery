@@ -133,11 +133,12 @@ class CustomerForm(forms.ModelForm):
 class SaleForm(forms.ModelForm):
     class Meta:
         model = Sale
-        fields = ["customer", "date", "notes"]
+        fields = ["customer", "date", "payment_method", "notes"]
         widgets = {
-            "customer": forms.Select(attrs=_SELECT),
-            "date":     forms.DateInput(attrs=_DATE),
-            "notes":    forms.Textarea(attrs=_TEXTAREA),
+            "customer":       forms.Select(attrs=_SELECT),
+            "date":           forms.DateInput(attrs=_DATE),
+            "payment_method": forms.Select(attrs=_SELECT),
+            "notes":          forms.Textarea(attrs=_TEXTAREA),
         }
 
 

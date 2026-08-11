@@ -243,22 +243,34 @@ def generate_invoice(sale) -> bytes:
     subtotal = sale.total_revenue
     vat      = (subtotal * VAT_RATE).quantize(Decimal("0.01"))
     total    = subtotal + vat
+    two      = Decimal("0.01")
 
-    # Three totals rows: cols 0-1 will be spanned for payment terms;
-    # cols 2-3 carry the labels and values, naturally aligned with the columns above.
+    # payment_received is None for pending sales (shouldn't reach here, but
+    # guard defensively). For finalized/closed sales use the stored value.
+    paid    = (sale.payment_received or total).quantize(two)
+    balance = max(total.quantize(two) - paid, Decimal("0"))
+
+    # Five totals rows: cols 0-1 spanned for payment terms across all rows;
+    # cols 2-3 carry labels + values aligned with the line-item columns.
+    pct_formatted = f"{float(VAT_RATE * 100):.1f}%" if VAT_RATE > 0 else "0%"
     rows.append([Paragraph(PAYMENT_TERMS, S["terms"]),
                  "",
-                 Paragraph("SUBTOTAL",    S["tot_lbl"]),
-                 Paragraph(f"${subtotal:,.2f}", S["tot_val"])])
-    
-    # Render dynamic label showing the actual percentage (e.g. VAT (0.0%))
-    pct_formatted = f"{float(VAT_RATE * 100):.1f}%" if VAT_RATE > 0 else "0%"
+                 Paragraph("SUBTOTAL",           S["tot_lbl"]),
+                 Paragraph(f"${subtotal:,.2f}",  S["tot_val"])])
     rows.append(["", "",
                  Paragraph(f"VAT ({pct_formatted})", S["tot_lbl"]),
-                 Paragraph(f"${vat:,.2f}",     S["tot_val"])])
+                 Paragraph(f"${vat:,.2f}",        S["tot_val"])])
     rows.append(["", "",
-                 Paragraph("TOTAL DUE",  S["grand_lbl"]),
-                 Paragraph(f"${total:,.2f}",   S["grand_val"])])
+                 Paragraph("TOTAL",               S["grand_lbl"]),
+                 Paragraph(f"${total:,.2f}",      S["grand_val"])])
+    rows.append(["", "",
+                 Paragraph("PAID",                S["tot_lbl"]),
+                 Paragraph(f"${paid:,.2f}",       S["tot_val"])])
+    rows.append(["", "",
+                 Paragraph("BALANCE",             S["grand_lbl"]),
+                 Paragraph(f"${balance:,.2f}",    S["grand_val"])])
+
+    n_tot = 5  # number of totals rows
 
     # Build style commands
     ts = [
@@ -275,18 +287,19 @@ def generate_invoice(sale) -> bytes:
         ("ALIGN",         (0, 1),    (0, r0 - 1), "CENTER"),
         # Unit price + total columns right-aligned throughout
         ("ALIGN",         (2, 0),    (3, -1),    "RIGHT"),
-        # Payment terms: merge cols 0-1 across all three totals rows
-        ("SPAN",          (0, r0),   (1, r0 + 2)),
+        # Payment terms: merge cols 0-1 across all five totals rows
+        ("SPAN",          (0, r0),   (1, r0 + n_tot - 1)),
         ("VALIGN",        (0, r0),   (0, r0),    "TOP"),
         # White background for the whole totals section
-        ("BACKGROUND",    (0, r0),   (-1, r0 + 2), colors.white),
+        ("BACKGROUND",    (0, r0),   (-1, r0 + n_tot - 1), colors.white),
         # Green rule separating data rows from totals section
         ("LINEABOVE",     (0, r0),   (-1, r0),   1, GREEN),
-        # Green rule above TOTAL DUE, only in the label+value columns
+        # Green rule above TOTAL (row r0+2) and BALANCE (last row)
         ("LINEABOVE",     (2, r0+2), (3, r0+2),  1, GREEN),
+        ("LINEABOVE",     (2, r0+4), (3, r0+4),  1, GREEN),
         # Tighten vertical padding on the totals label/value rows
-        ("TOPPADDING",    (2, r0),   (3, r0+2),  4),
-        ("BOTTOMPADDING", (2, r0),   (3, r0+2),  4),
+        ("TOPPADDING",    (2, r0),   (3, r0 + n_tot - 1),  4),
+        ("BOTTOMPADDING", (2, r0),   (3, r0 + n_tot - 1),  4),
     ]
 
     # Alternating light-green shading on even data rows (skips header and totals)

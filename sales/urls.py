@@ -17,10 +17,11 @@ urlpatterns = [
     path("",                         views.SaleListView.as_view(),    name="sale_list"),
     path("new/",                     views.SaleCreateView.as_view(),  name="sale_create"),
     path("<int:pk>/",                views.SaleDetailView.as_view(),  name="sale_detail"),
-    path("<int:pk>/edit/",           views.SaleUpdateView.as_view(),  name="sale_update"),
-    path("<int:pk>/close/",          views.SaleCloseView.as_view(),   name="sale_close"),
-    path("<int:pk>/cancel/",         views.SaleCancelView.as_view(),  name="sale_cancel"),
-    path("<int:pk>/invoice/",        views.SaleInvoiceView.as_view(), name="sale_invoice"),
+    path("<int:pk>/edit/",           views.SaleUpdateView.as_view(),        name="sale_update"),
+    path("<int:pk>/finalize/",       views.SaleFinalizeView.as_view(),      name="sale_finalize"),
+    path("<int:pk>/update-payment/", views.SaleUpdatePaymentView.as_view(), name="sale_update_payment"),
+    path("<int:pk>/cancel/",         views.SaleCancelView.as_view(),        name="sale_cancel"),
+    path("<int:pk>/invoice/",        views.SaleInvoiceView.as_view(),       name="sale_invoice"),
 
     # Meat sales (daily retail)
     path("meat/",                 views.MeatSaleListView.as_view(),        name="meat_sale_list"),

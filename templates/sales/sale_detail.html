@@ -16,27 +16,30 @@
         {% endif %}
     </h1>
     <div class="d-flex align-items-center">
-        {% if sale.status == "pending" %}
-        <form method="post" action="{% url 'sales:sale_close' sale.pk %}" class="mr-2"
-              onsubmit="return confirm('Close this sale? Inventory will be committed.');">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-sm btn-success shadow-sm">
-                <i class="fas fa-check fa-sm"></i> Close Sale
-            </button>
-        </form>
-        <form method="post" action="{% url 'sales:sale_cancel' sale.pk %}" class="mr-2"
-              onsubmit="return confirm('Cancel this sale?');">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-sm btn-danger shadow-sm">
-                <i class="fas fa-times fa-sm"></i> Cancel Sale
-            </button>
-        </form>
-        {% endif %}
-        {% if sale.status == "closed" %}
-        <a href="{% url 'sales:sale_invoice' sale.pk %}" class="btn btn-sm btn-primary shadow-sm mr-2">
-            <i class="fas fa-file-pdf fa-sm"></i> Download Invoice
-        </a>
-        {% endif %}
+    {% if sale.status == "pending" %}
+    <button type="button" class="btn btn-sm btn-success shadow-sm mr-2"
+      data-toggle="modal" data-target="#finalizeModal">
+    <i class="fas fa-check fa-sm"></i> Finalize
+    </button>
+    <form method="post" action="{% url 'sales:sale_cancel' sale.pk %}" class="mr-2"
+      onsubmit="return confirm('Cancel this sale?');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-danger shadow-sm">
+      <i class="fas fa-times fa-sm"></i> Cancel Sale
+    </button>
+    </form>
+    {% endif %}
+    {% if sale.status == "finalized" %}
+    <button type="button" class="btn btn-sm btn-success shadow-sm mr-2"
+            data-toggle="modal" data-target="#updatePaymentModal">
+        <i class="fas fa-dollar-sign fa-sm"></i> Update Payment
+    </button>
+    {% endif %}
+    {% if sale.status == "finalized" or sale.status == "closed" %}
+    <a href="{% url 'sales:sale_invoice' sale.pk %}" class="btn btn-sm btn-primary shadow-sm mr-2">
+        <i class="fas fa-file-pdf fa-sm"></i> Download Invoice
+    </a>
+    {% endif %}
         <a href="{% url 'sales:sale_list' %}" class="btn btn-sm btn-secondary shadow-sm">
             <i class="fas fa-arrow-left fa-sm"></i> All Sales
         </a>
@@ -47,9 +50,11 @@
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex align-items-center justify-content-between">
         <h6 class="m-0 font-weight-bold text-primary">Sale Details</h6>
+        {% if sale.status == "pending" %}
         <a href="{% url 'sales:sale_update' sale.pk %}" class="btn btn-sm btn-warning">
             <i class="fas fa-edit fa-sm mr-1"></i> Edit Details
         </a>
+        {% endif %}
     </div>
     <div class="card-body">
         <dl class="row mb-0">
@@ -59,8 +64,18 @@
             <dd class="col-sm-9">{{ sale.date }}</dd>
             <dt class="col-sm-3">Status</dt>
             <dd class="col-sm-9">{{ sale.get_status_display }}</dd>
+            {% if sale.status != "pending" %}
             <dt class="col-sm-3">Payment Method</dt>
             <dd class="col-sm-9">{{ sale.get_payment_method_display|default:"—" }}</dd>
+            <dt class="col-sm-3">Total</dt>
+            <dd class="col-sm-9">${{ sale.total_revenue|currency_comma }}</dd>
+            <dt class="col-sm-3">Paid</dt>
+            <dd class="col-sm-9">${{ sale.payment_received|currency_comma }}</dd>
+            <dt class="col-sm-3">Balance</dt>
+            <dd class="col-sm-9 {% if sale.balance > 0 %}text-danger font-weight-bold{% else %}text-success{% endif %}">
+                ${{ sale.balance|currency_comma }}
+            </dd>
+            {% endif %}
             {% if sale.notes %}
             <dt class="col-sm-3">Notes</dt>
             <dd class="col-sm-9">{{ sale.notes }}</dd>
@@ -193,9 +208,71 @@
     </div>
 </div>
 {% endif %}{# end sale.status == "pending" #}
+
+{# ── Finalize modal (pending sales) ────────────────────────────────── #}
+{% if sale.status == "pending" %}
+<div class="modal fade" id="finalizeModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Finalize Sale #{{ sale.pk }}</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <form method="post" action="{% url 'sales:sale_finalize' sale.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Total sale value: <strong>${{ sale.total_revenue|currency_comma }}</strong>.
+                        Inventory will be committed immediately.
+                    </p>
+                    {% include 'sales/partials/payment_fields.html' with total=sale.total_revenue %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success" id="finalizeSubmitBtn">
+                        <i class="fas fa-check mr-1"></i> Finalize / Close
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── Update-payment modal (finalized sales) ─────────────────────────── #}
+{% if sale.status == "finalized" %}
+<div class="modal fade" id="updatePaymentModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Payment — Sale #{{ sale.pk }}</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <form method="post" action="{% url 'sales:sale_update_payment' sale.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Total: <strong>${{ sale.total_revenue|currency_comma }}</strong> &nbsp;&nbsp;
+                        Paid to date: <strong>${{ sale.payment_received|currency_comma }}</strong> &nbsp;&nbsp;
+                        Balance: <strong class="text-danger">${{ sale.balance|currency_comma }}</strong>
+                    </p>
+                    {% include 'sales/partials/payment_fields.html' with total=sale.balance is_update=True %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-dollar-sign mr-1"></i> Update Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
+{% include 'sales/partials/payment_fields_js.html' %}
 {% if sale.status == "pending" %}
 <script>
 // ── Add-chicks batch selector: live available count ───────────────────────

@@ -43,6 +43,8 @@
                         <td class="text-center">
                             {% if sale.status == "pending" %}
                                 <span class="badge badge-warning">Pending</span>
+                            {% elif sale.status == "finalized" %}
+                                <span class="badge badge-info">Finalized</span>
                             {% elif sale.status == "closed" %}
                                 <span class="badge badge-success">Closed</span>
                             {% else %}
@@ -54,10 +56,22 @@
                                class="btn btn-sm btn-primary" title="View">
                                 <i class="fas fa-eye"></i>
                             </a>
+                            {% if sale.status == "pending" %}
                             <a href="{% url 'sales:sale_update' sale.pk %}"
                                class="btn btn-sm btn-warning" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </a>
+                            {% elif sale.status == "finalized" %}
+                            <button type="button"
+                                    class="btn btn-sm btn-success js-update-payment"
+                                    title="Update Payment"
+                                    data-pk="{{ sale.pk }}"
+                                    data-total="{{ sale.total_revenue }}"
+                                    data-received="{{ sale.payment_received|default:'0' }}"
+                                    data-url="{% url 'sales:sale_update_payment' sale.pk %}">
+                                <i class="fas fa-dollar-sign"></i>
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}
@@ -68,15 +82,51 @@
         </div>
     </div>
 </div>
+{# ── Update-payment modal (list view — finalized sales) ─────────────── #}
+<div class="modal fade" id="updatePaymentModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Payment</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <form id="updatePaymentForm" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    {% include 'sales/partials/payment_fields.html' %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success" id="upSubmitBtn">Update Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+{% include 'sales/partials/payment_fields_js.html' %}
 <script src="{% static 'vendor/datatables/jquery.dataTables.min.js' %}"></script>
 <script src="{% static 'vendor/datatables/dataTables.bootstrap4.min.js' %}"></script>
 <script>
     $('#salesTable').DataTable({
         order: [[0, 'desc']],
         columnDefs: [{ orderable: false, targets: 5 }]
+    });
+
+    // ── Update-payment modal (list view) ──────────────────────────────────
+    $('.js-update-payment').on('click', function() {
+        var total    = parseFloat($(this).data('total'));
+        var received = parseFloat($(this).data('received'));
+        var balance  = Math.max(total - received, 0);
+        var url      = $(this).data('url');
+
+        var $modal = $('#updatePaymentModal');
+        $modal.find('#updatePaymentForm').attr('action', url);
+        // Stamp the balance as the relevant total for this update context.
+        $modal.find('.js-payment-received').attr('data-total', balance.toFixed(2));
+        $modal.modal('show');
     });
 </script>
 {% endblock %}

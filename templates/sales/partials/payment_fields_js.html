@@ -1,0 +1,40 @@
+<script>
+// ── Payment modal toggle logic ─────────────────────────────────────────────
+// Works for both the finalize modal (reads total from the modal body text
+// stamped by the server) and the update-payment modal (reads balance).
+// Both modals use the same partial, so we wire using closest() to scope
+// each toggle to its own modal.
+
+$(document).on('change', '.js-partial-toggle', function () {
+    var $modal   = $(this).closest('.modal-content');
+    var $input   = $modal.find('.js-payment-received');
+    var $hint    = $modal.find('.js-amount-hint');
+    var total    = parseFloat($input.attr('data-total') || $input.val() || '0');
+    var isPartial = $(this).is(':checked');
+
+    if (isPartial) {
+        $input.prop('readonly', false).val('').attr('max', total);
+        $hint.text('Enter an amount between $0.01 and $' + total.toFixed(2) + '.');
+    } else {
+        $input.prop('readonly', true).val(total.toFixed(2)).removeAttr('max');
+        $hint.text('Full amount of $' + total.toFixed(2) + ' will be recorded.');
+    }
+});
+
+// On modal show: reset toggle, set full amount as the default.
+$(document).on('show.bs.modal', '.modal', function () {
+    var $modal  = $(this);
+    var $toggle = $modal.find('.js-partial-toggle');
+    var $input  = $modal.find('.js-payment-received');
+    var $hint   = $modal.find('.js-amount-hint');
+
+    // Read the total stamped as a data attribute on the input by the server
+    // template (set via Django template tag in the including template).
+    var total = parseFloat($input.attr('data-total') || '0');
+
+    // Default: full payment, read-only.
+    $toggle.prop('checked', false);
+    $input.prop('readonly', true).val(total > 0 ? total.toFixed(2) : '');
+    $hint.text(total > 0 ? 'Full amount of $' + total.toFixed(2) + ' will be recorded.' : '');
+});
+</script>

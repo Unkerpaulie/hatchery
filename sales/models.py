@@ -51,6 +51,7 @@ class Sale(AuditedModel):
         DEBIT_CARD    = "debit_card",    "Debit Card"
         CREDIT_CARD   = "credit_card",   "Credit Card"
         BANK_TRANSFER = "bank_transfer", "Bank Transfer"
+        BANK_DEPOSIT  = "bank_deposit", "Bank Deposit"
 
     customer       = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="sales")
     date           = models.DateField(default=timezone.localdate)

@@ -1,0 +1,48 @@
+{# Reusable payment-capture fields included in both the finalize modal
+   (pending sales) and the update-payment modal (finalized sales).
+   The JS in payment_fields_js.html wires the toggle behaviour.
+#}
+
+{# ── Payment method ──────────────────────────────────────────────────── #}
+<div class="form-group">
+    <label class="font-weight-bold">Payment Method <span class="text-danger">*</span></label>
+    <select name="payment_method" class="form-control" required>
+        <option value="">— Select —</option>
+        <option value="cash">Cash</option>
+        <option value="debit_card">Debit Card</option>
+        <option value="credit_card">Credit Card</option>
+        <option value="bank_transfer">Bank Transfer</option>
+    </select>
+</div>
+
+{# ── Full / Partial toggle ───────────────────────────────────────────── #}
+<div class="form-group">
+    <label class="font-weight-bold">Payment Type</label>
+    <div class="d-flex align-items-center">
+        <div class="custom-control custom-switch">
+            <input type="checkbox"
+                   class="custom-control-input js-partial-toggle"
+                   id="js-partial-toggle">
+            <label class="custom-control-label" for="js-partial-toggle">
+                Partial Payment
+            </label>
+        </div>
+    </div>
+    <small class="form-text text-muted js-toggle-hint">
+        Toggle on to enter a partial amount; leave off to record full payment.
+    </small>
+</div>
+
+{# ── Amount input ─────────────────────────────────────────────────────── #}
+<div class="form-group">
+    <label class="font-weight-bold">Amount Received ($)</label>
+    <input type="number"
+           name="payment_received"
+           class="form-control js-payment-received"
+           step="0.01"
+           min="0.01"
+           data-total="{{ total|default:'0' }}"
+           readonly
+           required>
+    <small class="form-text text-muted js-amount-hint"></small>
+</div>

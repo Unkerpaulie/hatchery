@@ -101,6 +101,7 @@ def _sale_list_queryset():
         .values("sale").annotate(s=Sum(F("quantity") * F("unit_price"))).values("s")
     )
     zero_money = Value(Decimal("0"), output_field=DecimalField(max_digits=12, decimal_places=2))
+    # payment_received is a real column on Sale — available without annotation.
     return Sale.objects.select_related("customer").annotate(
         total_quantity=Coalesce(Subquery(qty_sq, output_field=IntegerField()), 0),
         total_revenue=Coalesce(Subquery(rev_sq, output_field=DecimalField(max_digits=12, decimal_places=2)), zero_money),
@@ -133,6 +134,13 @@ class SaleUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
     form_class = SaleForm
     template_name = "sales/sale_form.html"
     context_object_name = "sale"
+
+    def dispatch(self, request, *args, **kwargs):
+        sale = self.get_object()
+        if sale.status != Sale.Status.PENDING:
+            messages.error(request, "Only pending sales can be edited.")
+            return redirect("sales:sale_detail", pk=sale.pk)
+        return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
         messages.success(self.request, "Sale updated.")
@@ -170,7 +178,7 @@ class SaleDetailView(LoginRequiredMixin, DetailView):
         ctx["over_committed_pks"] = set()   # set of line PKs — used by {% if line.pk in … %}
         ctx["line_avail_json"] = "{}"       # JSON {str(line.pk): available} for JS tooltips
 
-        if sale.status == Sale.Status.PENDING:
+        if sale.status == Sale.Status.PENDING:  # over-commitment warnings only apply to draft sales
             lines = list(sale.lines.all())
             if lines:
                 batch_ids = list({line.batch_id for line in lines})
@@ -204,7 +212,7 @@ class SaleLineCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         sale = self.get_sale()
         if sale.status != Sale.Status.PENDING:
-            messages.error(self.request, "Lines can only be added to pending sales.")
+            messages.error(self.request, "Lines can only be added to pending sales. Finalized and closed sales are locked.")
             return redirect("sales:sale_detail", pk=sale.pk)
         form.instance.sale = sale
         messages.success(self.request, "Chick line added.")
@@ -236,58 +244,162 @@ class SaleLineDeleteView(LoginRequiredMixin, View):
         return redirect("sales:sale_detail", pk=sale.pk)
 
 
-class SaleCloseView(LoginRequiredMixin, View):
-    """POST-only action: validate inventory then transition sale to CLOSED.
+def _validate_inventory(sale, lines):
+    """Check every line against current available stock.
 
-    Inventory ceiling is checked here for every line in the sale. Because
-    only CLOSED sales are counted in ``sold_count``, the batch's
-    ``chicks_available`` value already excludes this (still-pending) sale, so
-    we simply compare each line's quantity against the current available stock.
+    Returns a list of error strings (empty = all good). Used by both
+    SaleFinalizeView and the future test suite so the logic isn't duplicated.
+    """
+    from collections import defaultdict
+    batch_ids = [l.batch_id for l in lines]
+    batch_map = {
+        b.pk: b
+        for b in Batch.objects.with_inventory().filter(pk__in=batch_ids)
+    }
+    needed: dict = defaultdict(int)
+    for line in lines:
+        needed[line.batch_id] += line.quantity
+
+    errors = []
+    for batch_id, qty in needed.items():
+        batch = batch_map[batch_id]
+        if qty > batch.chicks_available:
+            errors.append(
+                f"Batch #{batch_id}: {qty} requested but only "
+                f"{batch.chicks_available} available."
+            )
+    return errors
+
+
+class SaleFinalizeView(LoginRequiredMixin, View):
+    """POST-only: receive payment details from the finalize modal and commit
+    the sale (PENDING → FINALIZED or PENDING → CLOSED).
+
+    The modal always posts:
+        payment_method  — one of the PaymentMethod choices
+        payment_received — decimal string; equals total for full payment
+
+    If payment_received == total_revenue the sale moves directly to CLOSED.
+    If payment_received < total_revenue it becomes FINALIZED (chicks out,
+    balance still owed).
+
+    In both cases inventory is validated first — the same ceiling check that
+    the old SaleCloseView performed.
     """
 
     def post(self, request, pk):
-        sale = get_object_or_404(Sale.objects.prefetch_related("lines__batch"), pk=pk)
+        sale = get_object_or_404(
+            Sale.objects.prefetch_related("lines__batch"), pk=pk
+        )
         if sale.status != Sale.Status.PENDING:
-            messages.error(request, "Only pending sales can be closed.")
+            messages.error(request, "Only pending sales can be finalized.")
             return redirect("sales:sale_detail", pk=pk)
 
         lines = list(sale.lines.all())
         if not lines:
-            messages.error(request, "Cannot close a sale with no line items.")
+            messages.error(request, "Cannot finalize a sale with no line items.")
             return redirect("sales:sale_detail", pk=pk)
 
-        # Fetch fresh inventory annotations for all relevant batches.
-        batch_ids = [l.batch_id for l in lines]
-        batch_map = {
-            b.pk: b
-            for b in Batch.objects.with_inventory().filter(pk__in=batch_ids)
-        }
+        # ── Parse & validate payment amount ───────────────────────────────
+        try:
+            payment_received = Decimal(request.POST.get("payment_received", ""))
+            if payment_received < Decimal("0"):
+                raise ValueError
+        except (InvalidOperation, ValueError):
+            messages.error(request, "Invalid payment amount.")
+            return redirect("sales:sale_detail", pk=pk)
 
-        # Aggregate total quantity requested per batch across all lines in
-        # this sale (a batch can appear on multiple lines).
-        from collections import defaultdict
-        needed: dict = defaultdict(int)
-        for line in lines:
-            needed[line.batch_id] += line.quantity
+        payment_method = request.POST.get("payment_method", "")
+        if payment_method not in Sale.PaymentMethod.values:
+            messages.error(request, "Please select a valid payment method.")
+            return redirect("sales:sale_detail", pk=pk)
 
-        errors = []
-        for batch_id, qty in needed.items():
-            batch = batch_map[batch_id]
-            if qty > batch.chicks_available:
-                errors.append(
-                    f"Batch #{batch_id}: {qty} requested but only "
-                    f"{batch.chicks_available} available."
-                )
-
-        if errors:
-            for err in errors:
+        # ── Validate inventory ────────────────────────────────────────────
+        inv_errors = _validate_inventory(sale, lines)
+        if inv_errors:
+            for err in inv_errors:
                 messages.error(request, err)
             return redirect("sales:sale_detail", pk=pk)
 
-        sale.status = Sale.Status.CLOSED
-        sale.updated_by = request.user
-        sale.save(update_fields=["status", "updated_at", "updated_by"])
-        messages.success(request, "Sale closed — inventory has been committed.")
+        # ── Compute total so we can determine the target status ───────────
+        total = sale.total_revenue  # cached_property — safe to call here
+        two   = Decimal("0.01")
+        payment_received = payment_received.quantize(two)
+        # Cap at total (UI prevents overpayment but guard server-side too)
+        payment_received = min(payment_received, total.quantize(two))
+
+        if payment_received >= total.quantize(two):
+            new_status = Sale.Status.CLOSED
+            msg = "Sale closed — payment received in full, inventory committed."
+        else:
+            new_status = Sale.Status.FINALIZED
+            balance = (total - payment_received).quantize(two)
+            msg = (
+                f"Sale finalized — inventory committed. "
+                f"Balance outstanding: ${balance:,.2f}."
+            )
+
+        sale.status           = new_status
+        sale.payment_method   = payment_method
+        sale.payment_received = payment_received
+        sale.updated_by       = request.user
+        sale.save(update_fields=[
+            "status", "payment_method", "payment_received", "updated_at", "updated_by",
+        ])
+        messages.success(request, msg)
+        return redirect("sales:sale_detail", pk=pk)
+
+
+class SaleUpdatePaymentView(LoginRequiredMixin, View):
+    """POST-only: record a new payment against a FINALIZED sale.
+
+    Accepts the same modal payload as SaleFinalizeView:
+        payment_method   — may be updated if they paid differently this time
+        payment_received — the NEW cumulative total received (overwrites the
+                           stored value; see rules.md note on instalment history)
+
+    If the new payment_received >= total_revenue the sale closes.
+    """
+
+    def post(self, request, pk):
+        sale = get_object_or_404(Sale, pk=pk)
+        if sale.status != Sale.Status.FINALIZED:
+            messages.error(request, "Payment can only be updated on finalized sales.")
+            return redirect("sales:sale_detail", pk=pk)
+
+        try:
+            payment_received = Decimal(request.POST.get("payment_received", ""))
+            if payment_received < Decimal("0"):
+                raise ValueError
+        except (InvalidOperation, ValueError):
+            messages.error(request, "Invalid payment amount.")
+            return redirect("sales:sale_detail", pk=pk)
+
+        payment_method = request.POST.get("payment_method", "")
+        if payment_method not in Sale.PaymentMethod.values:
+            messages.error(request, "Please select a valid payment method.")
+            return redirect("sales:sale_detail", pk=pk)
+
+        total = sale.total_revenue
+        two   = Decimal("0.01")
+        payment_received = min(payment_received.quantize(two), total.quantize(two))
+
+        if payment_received >= total.quantize(two):
+            new_status = Sale.Status.CLOSED
+            msg = "Payment updated — balance cleared, sale is now closed."
+        else:
+            new_status = Sale.Status.FINALIZED
+            balance = (total - payment_received).quantize(two)
+            msg = f"Payment updated — balance outstanding: ${balance:,.2f}."
+
+        sale.status           = new_status
+        sale.payment_method   = payment_method
+        sale.payment_received = payment_received
+        sale.updated_by       = request.user
+        sale.save(update_fields=[
+            "status", "payment_method", "payment_received", "updated_at", "updated_by",
+        ])
+        messages.success(request, msg)
         return redirect("sales:sale_detail", pk=pk)
 
 
@@ -314,8 +426,8 @@ class SaleInvoiceView(LoginRequiredMixin, View):
             Sale.objects.select_related("customer").prefetch_related("lines__batch"),
             pk=pk,
         )
-        if sale.status != Sale.Status.CLOSED:
-            messages.error(request, "Invoices can only be generated for closed sales.")
+        if sale.status not in (Sale.Status.FINALIZED, Sale.Status.CLOSED):
+            messages.error(request, "Invoices can only be generated for finalized or closed sales.")
             return redirect("sales:sale_detail", pk=pk)
 
         from .invoice import generate_invoice

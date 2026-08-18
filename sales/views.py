@@ -353,12 +353,16 @@ class SaleFinalizeView(LoginRequiredMixin, View):
 class SaleUpdatePaymentView(LoginRequiredMixin, View):
     """POST-only: record a new payment against a FINALIZED sale.
 
-    Accepts the same modal payload as SaleFinalizeView:
-        payment_method   — may be updated if they paid differently this time
-        payment_received — the NEW cumulative total received (overwrites the
-                           stored value; see rules.md note on instalment history)
+    Posted fields:
+        payment_method  — choice value from PaymentMethod
+        payment_received — decimal amount entered in the modal
+        payment_mode    — 'full' or 'partial'
 
-    If the new payment_received >= total_revenue the sale closes.
+    Full mode:    payment_received replaces the stored total (max = sale total).
+    Partial mode: payment_received is ADDED to the existing stored total.
+
+    In both cases, if the resulting cumulative total >= sale total, the sale
+    transitions to CLOSED.
     """
 
     def post(self, request, pk):
@@ -368,8 +372,8 @@ class SaleUpdatePaymentView(LoginRequiredMixin, View):
             return redirect("sales:sale_detail", pk=pk)
 
         try:
-            payment_received = Decimal(request.POST.get("payment_received", ""))
-            if payment_received < Decimal("0"):
+            posted_amount = Decimal(request.POST.get("payment_received", ""))
+            if posted_amount < Decimal("0"):
                 raise ValueError
         except (InvalidOperation, ValueError):
             messages.error(request, "Invalid payment amount.")
@@ -380,21 +384,30 @@ class SaleUpdatePaymentView(LoginRequiredMixin, View):
             messages.error(request, "Please select a valid payment method.")
             return redirect("sales:sale_detail", pk=pk)
 
+        payment_mode = request.POST.get("payment_mode", "full")
         total = sale.total_revenue
         two   = Decimal("0.01")
-        payment_received = min(payment_received.quantize(two), total.quantize(two))
+        posted_amount = posted_amount.quantize(two)
 
-        if payment_received >= total.quantize(two):
+        if payment_mode == "partial":
+            # Add the new payment to what has already been collected.
+            prior = (sale.payment_received or Decimal("0")).quantize(two)
+            new_total_received = min(prior + posted_amount, total.quantize(two))
+        else:
+            # Full mode: the entered amount IS the new cumulative total received.
+            new_total_received = min(posted_amount, total.quantize(two))
+
+        if new_total_received >= total.quantize(two):
             new_status = Sale.Status.CLOSED
             msg = "Payment updated — balance cleared, sale is now closed."
         else:
             new_status = Sale.Status.FINALIZED
-            balance = (total - payment_received).quantize(two)
+            balance = (total - new_total_received).quantize(two)
             msg = f"Payment updated — balance outstanding: ${balance:,.2f}."
 
         sale.status           = new_status
         sale.payment_method   = payment_method
-        sale.payment_received = payment_received
+        sale.payment_received = new_total_received
         sale.updated_by       = request.user
         sale.save(update_fields=[
             "status", "payment_method", "payment_received", "updated_at", "updated_by",
@@ -415,6 +428,28 @@ class SaleCancelView(LoginRequiredMixin, View):
         sale.updated_by = request.user
         sale.save(update_fields=["status", "updated_at", "updated_by"])
         messages.success(request, "Sale cancelled.")
+        return redirect("sales:sale_detail", pk=pk)
+
+
+class SaleCloseView(LoginRequiredMixin, View):
+    """POST-only: close a FINALIZED sale whose balance is zero.
+
+    Only valid when payment_received >= total_revenue. Guards server-side
+    against being called on a sale that still has an outstanding balance.
+    """
+
+    def post(self, request, pk):
+        sale = get_object_or_404(Sale, pk=pk)
+        if sale.status != Sale.Status.FINALIZED:
+            messages.error(request, "Only finalized sales can be closed this way.")
+            return redirect("sales:sale_detail", pk=pk)
+        if sale.balance > Decimal("0"):
+            messages.error(request, "Sale still has an outstanding balance and cannot be closed yet.")
+            return redirect("sales:sale_detail", pk=pk)
+        sale.status     = Sale.Status.CLOSED
+        sale.updated_by = request.user
+        sale.save(update_fields=["status", "updated_at", "updated_by"])
+        messages.success(request, "Sale closed.")
         return redirect("sales:sale_detail", pk=pk)
 
 

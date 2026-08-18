@@ -5,7 +5,14 @@ The JS in payment_fields_js.html wires the toggle behaviour.
 
 Requires `sale` in context — choices are read from Sale.PaymentMethod so
 adding a new choice to the model automatically appears here.
-Optional: `total` (decimal) — stamped as data-total on the amount input.
+
+Context variables:
+  total    (decimal) — the relevant ceiling for this modal:
+                       sale total for finalize; sale total for update (full mode).
+  balance  (decimal) — outstanding balance, only passed for update-payment modal.
+                       JS uses it to cap the partial-payment input.
+  is_update (bool)   — truthy when rendered inside the update-payment modal;
+                       changes label text to reflect additive vs replacement logic.
 {% endcomment %}
 
 {# ── Payment method — dynamic from Sale.PaymentMethod.choices ─────────── #}
@@ -35,21 +42,22 @@ Optional: `total` (decimal) — stamped as data-total on the amount input.
             </label>
         </div>
     </div>
-    <small class="form-text text-muted">
-        Toggle on to enter a partial amount; leave off to record full payment.
-    </small>
+    <small class="form-text text-muted js-toggle-hint"></small>
 </div>
 
 {# ── Amount input ─────────────────────────────────────────────────────── #}
 <div class="form-group">
-    <label class="font-weight-bold">Amount Received ($)</label>
+    <label class="font-weight-bold js-amount-label">
+        {% if is_update %}Amount Received ($){% else %}Amount Received ($){% endif %}
+    </label>
     <input type="number"
            name="payment_received"
            class="form-control js-payment-received"
            step="0.01"
            min="0.01"
            data-total="{{ total|default:'0' }}"
-           readonly
+           data-balance="{{ balance|default:total|default:'0' }}"
+           data-is-update="{% if is_update %}1{% else %}0{% endif %}"
            required>
     <small class="form-text text-muted js-amount-hint"></small>
 </div>

@@ -9,6 +9,8 @@
         Sale #{{ sale.pk }}
         {% if sale.status == "pending" %}
             <span class="badge badge-warning ml-2">Pending</span>
+        {% elif sale.status == "finalized" %}
+            <span class="badge badge-info ml-2">Finalized</span>
         {% elif sale.status == "closed" %}
             <span class="badge badge-success ml-2">Closed</span>
         {% else %}
@@ -30,10 +32,20 @@
     </form>
     {% endif %}
     {% if sale.status == "finalized" %}
+    {% if sale.balance > 0 %}
     <button type="button" class="btn btn-sm btn-success shadow-sm mr-2"
             data-toggle="modal" data-target="#updatePaymentModal">
         <i class="fas fa-dollar-sign fa-sm"></i> Update Payment
     </button>
+    {% else %}
+    <form method="post" action="{% url 'sales:sale_close' sale.pk %}" class="mr-2"
+          onsubmit="return confirm('Balance is cleared — close this sale?');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-success shadow-sm">
+            <i class="fas fa-check fa-sm"></i> Close Sale
+        </button>
+    </form>
+    {% endif %}
     {% endif %}
     {% if sale.status == "finalized" or sale.status == "closed" %}
     <a href="{% url 'sales:sale_invoice' sale.pk %}" class="btn btn-sm btn-primary shadow-sm mr-2">
@@ -250,13 +262,14 @@
             </div>
             <form method="post" action="{% url 'sales:sale_update_payment' sale.pk %}">
                 {% csrf_token %}
+                <input type="hidden" name="payment_mode" class="js-payment-mode" value="full">
                 <div class="modal-body">
                     <p class="text-muted mb-3">
                         Total: <strong>${{ sale.total_revenue|currency_comma }}</strong> &nbsp;&nbsp;
                         Paid to date: <strong>${{ sale.payment_received|currency_comma }}</strong> &nbsp;&nbsp;
                         Balance: <strong class="text-danger">${{ sale.balance|currency_comma }}</strong>
                     </p>
-                    {% include 'sales/partials/payment_fields.html' with total=sale.balance is_update=True %}
+                    {% include 'sales/partials/payment_fields.html' with total=sale.total_revenue balance=sale.balance is_update=True %}
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>

@@ -1,40 +1,86 @@
 <script>
 // ── Payment modal toggle logic ─────────────────────────────────────────────
-// Works for both the finalize modal (reads total from the modal body text
-// stamped by the server) and the update-payment modal (reads balance).
-// Both modals use the same partial, so we wire using closest() to scope
-// each toggle to its own modal.
+//
+// Two modals share payment_fields.html but have different semantics:
+//
+// FINALIZE modal (is_update = 0):
+//   Full payment:    user enters the full sale total — editable, max = total.
+//   Partial payment: user enters less than the total — editable, max = total.
+//   In both cases the entered amount becomes payment_received on the sale.
+//
+// UPDATE PAYMENT modal (is_update = 1):
+//   Full payment:    user enters the new cumulative total received — editable,
+//                    max = sale total. View overwrites payment_received with it.
+//   Partial payment: user enters an ADDITIONAL payment — editable,
+//                    max = outstanding balance. View ADDS it to payment_received.
+//
+// The hidden input .js-payment-mode ('full'|'partial') is submitted with the
+// form so the view knows which arithmetic to apply.
 
-$(document).on('change', '.js-partial-toggle', function () {
-    var $modal   = $(this).closest('.modal-content');
-    var $input   = $modal.find('.js-payment-received');
-    var $hint    = $modal.find('.js-amount-hint');
-    var total    = parseFloat($input.attr('data-total') || $input.val() || '0');
-    var isPartial = $(this).is(':checked');
+function initPaymentModal($modal) {
+    var $input    = $modal.find('.js-payment-received');
+    var $toggle   = $modal.find('.js-partial-toggle');
+    var $hint     = $modal.find('.js-amount-hint');
+    var $modeInput = $modal.find('.js-payment-mode');
 
-    if (isPartial) {
-        $input.prop('readonly', false).val('').attr('max', total);
-        $hint.text('Enter an amount between $0.01 and $' + total.toFixed(2) + '.');
-    } else {
-        $input.prop('readonly', true).val(total.toFixed(2)).removeAttr('max');
-        $hint.text('Full amount of $' + total.toFixed(2) + ' will be recorded.');
+    var total    = parseFloat($input.data('total')    || '0');
+    var balance  = parseFloat($input.data('balance')  || total);
+    var isUpdate = $input.data('is-update') === 1 || $input.data('is-update') === '1';
+
+    function applyState(isPartial) {
+        if (isPartial) {
+            // Partial mode — additive payment up to the outstanding balance.
+            var cap = isUpdate ? balance : total;
+            $input
+                .val('')
+                .attr('max', cap.toFixed(2))
+                .prop('readonly', false);
+            if (isUpdate) {
+                $hint.text(
+                    'Enter the additional amount received (up to the balance of $' +
+                    balance.toFixed(2) + '). It will be ADDED to what is already paid.'
+                );
+            } else {
+                $hint.text(
+                    'Enter the partial amount received (up to $' + total.toFixed(2) + ').'
+                );
+            }
+            if ($modeInput.length) $modeInput.val('partial');
+        } else {
+            // Full payment mode.
+            if (isUpdate) {
+                // User enters the NEW cumulative total received (replaces stored value).
+                $input
+                    .val(total.toFixed(2))
+                    .attr('max', total.toFixed(2))
+                    .prop('readonly', false);
+                $hint.text(
+                    'Enter the total amount received so far (max $' + total.toFixed(2) +
+                    '). This replaces the currently recorded amount.'
+                );
+            } else {
+                // Finalize: pre-fill full total, still editable.
+                $input
+                    .val(total.toFixed(2))
+                    .attr('max', total.toFixed(2))
+                    .prop('readonly', false);
+                $hint.text('Full sale amount of $' + total.toFixed(2) + ' pre-filled. Edit if needed.');
+            }
+            if ($modeInput.length) $modeInput.val('full');
+        }
     }
-});
 
-// On modal show: reset toggle, set full amount as the default.
-$(document).on('show.bs.modal', '.modal', function () {
-    var $modal  = $(this);
-    var $toggle = $modal.find('.js-partial-toggle');
-    var $input  = $modal.find('.js-payment-received');
-    var $hint   = $modal.find('.js-amount-hint');
+    // Wire toggle.
+    $toggle.off('change.payment').on('change.payment', function () {
+        applyState($(this).is(':checked'));
+    });
 
-    // Read the total stamped as a data attribute on the input by the server
-    // template (set via Django template tag in the including template).
-    var total = parseFloat($input.attr('data-total') || '0');
-
-    // Default: full payment, read-only.
+    // Reset to full-payment state when modal opens.
     $toggle.prop('checked', false);
-    $input.prop('readonly', true).val(total > 0 ? total.toFixed(2) : '');
-    $hint.text(total > 0 ? 'Full amount of $' + total.toFixed(2) + ' will be recorded.' : '');
+    applyState(false);
+}
+
+$(document).on('show.bs.modal', '.modal', function () {
+    initPaymentModal($(this));
 });
 </script>

@@ -59,11 +59,11 @@ class BatchQuerySet(models.QuerySet):
                 qs = qs.filter(**extra_filter)
             return qs.values("batch").annotate(s=Sum(field)).values("s")
 
-        # Only CLOSED sales commit chick inventory.
-        closed_filter = {"sale__status": "closed"}
+        # FINALIZED and CLOSED sales both commit chick inventory.
+        committed_filter = {"sale__status__in": ["finalized", "closed"]}
 
         revenue_sq = (
-            SaleLine.objects.filter(batch=OuterRef("pk"), sale__status="closed")
+            SaleLine.objects.filter(batch=OuterRef("pk"), sale__status__in=["finalized", "closed"])
             .values("batch")
             .annotate(s=Sum(F("quantity") * F("unit_price")))
             .values("s")
@@ -84,7 +84,7 @@ class BatchQuerySet(models.QuerySet):
         return (
             self.annotate(
                 hatched_count=Coalesce(Subquery(_sum_sq(Hatch), output_field=IntegerField()), zero_int),
-                sold_count=Coalesce(Subquery(_sum_sq(SaleLine, extra_filter=closed_filter), output_field=IntegerField()), zero_int),
+                sold_count=Coalesce(Subquery(_sum_sq(SaleLine, extra_filter=committed_filter), output_field=IntegerField()), zero_int),
                 adjusted_count=Coalesce(Subquery(_sum_sq(Adjustment), output_field=IntegerField()), zero_int),
                 meat_sold_count=Coalesce(Subquery(meat_sold_sq, output_field=IntegerField()), zero_int),
                 revenue=Coalesce(
@@ -344,7 +344,7 @@ class Batch(AuditedModel):
 
     @cached_property
     def sold_count(self) -> int:
-        return self.sale_lines.filter(sale__status="closed").aggregate(s=Sum("quantity"))["s"] or 0
+        return self.sale_lines.filter(sale__status__in=["finalized", "closed"]).aggregate(s=Sum("quantity"))["s"] or 0
 
     @cached_property
     def adjusted_count(self) -> int:
@@ -415,7 +415,7 @@ class Batch(AuditedModel):
 
     @cached_property
     def revenue(self) -> Decimal:
-        agg = self.sale_lines.filter(sale__status="closed").aggregate(
+        agg = self.sale_lines.filter(sale__status__in=["finalized", "closed"]).aggregate(
             s=Sum(F("quantity") * F("unit_price"))
         )["s"]
         return agg or Decimal("0")

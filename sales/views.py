@@ -115,6 +115,11 @@ class SaleListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return _sale_list_queryset()
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["sale_payment_method_choices"] = Sale.PaymentMethod.choices
+        return ctx
+
 
 class SaleCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     model = Sale

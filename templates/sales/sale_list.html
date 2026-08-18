@@ -92,8 +92,41 @@
             </div>
             <form id="updatePaymentForm" method="post">
                 {% csrf_token %}
+                <input type="hidden" name="payment_mode" class="js-payment-mode" value="full">
                 <div class="modal-body">
-                    {% include 'sales/partials/payment_fields.html' %}
+                    <p class="text-muted mb-2 js-payment-summary"></p>
+
+                    <div class="form-group">
+                        <label class="font-weight-bold">Payment Method <span class="text-danger">*</span></label>
+                        <select name="payment_method" class="form-control" required>
+                            <option value="">— Select —</option>
+                            {% for value, label in sale_payment_method_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="font-weight-bold">Payment Type</label>
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input js-partial-toggle" id="js-partial-toggle">
+                            <label class="custom-control-label" for="js-partial-toggle">Partial Payment</label>
+                        </div>
+                        <small class="form-text text-muted">Toggle on to enter a partial amount; leave off to record full payment.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="font-weight-bold">Amount Received ($)</label>
+                        <input type="number"
+                               name="payment_received"
+                               class="form-control js-payment-received"
+                               step="0.01" min="0.01"
+                               data-total="0"
+                               data-balance="0"
+                               data-is-update="1"
+                               required>
+                        <small class="form-text text-muted js-amount-hint"></small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -124,8 +157,16 @@
 
         var $modal = $('#updatePaymentModal');
         $modal.find('#updatePaymentForm').attr('action', url);
-        // Stamp the balance as the relevant total for this update context.
-        $modal.find('.js-payment-received').attr('data-total', balance.toFixed(2));
+        // Stamp both values so initPaymentModal() has what it needs.
+        var $input = $modal.find('.js-payment-received');
+        $input.attr('data-total',   total.toFixed(2));
+        $input.attr('data-balance', balance.toFixed(2));
+        // Update the summary line so the user knows the context.
+        $modal.find('.js-payment-summary').text(
+            'Total: $' + total.toFixed(2) +
+            '    Paid: $' + received.toFixed(2) +
+            '    Balance: $' + balance.toFixed(2)
+        );
         $modal.modal('show');
     });
 </script>

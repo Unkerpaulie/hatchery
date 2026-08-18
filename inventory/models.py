@@ -69,6 +69,14 @@ class BatchQuerySet(models.QuerySet):
             .values("s")
         )
 
+        # Meat sale revenue: sum of weight_lb * price_per_lb per batch.
+        meat_revenue_sq = (
+            MeatSaleLine.objects.filter(meat_sale__batch=OuterRef("pk"))
+            .values("meat_sale__batch_id")
+            .annotate(s=Sum(F("weight_lb") * F("meat_sale__price_per_lb")))
+            .values("s")
+        )
+
         # Each MeatSaleLine row = one chicken sold. Count rows per batch via
         # the MeatSale FK (MeatSaleLine → MeatSale → Batch).
         meat_sold_sq = (
@@ -89,6 +97,9 @@ class BatchQuerySet(models.QuerySet):
                 meat_sold_count=Coalesce(Subquery(meat_sold_sq, output_field=IntegerField()), zero_int),
                 revenue=Coalesce(
                     Subquery(revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
+                    zero_money,
+                ) + Coalesce(
+                    Subquery(meat_revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
                     zero_money,
                 ),
             )
@@ -415,10 +426,50 @@ class Batch(AuditedModel):
 
     @cached_property
     def revenue(self) -> Decimal:
-        agg = self.sale_lines.filter(sale__status__in=["finalized", "closed"]).aggregate(
-            s=Sum(F("quantity") * F("unit_price"))
-        )["s"]
-        return agg or Decimal("0")
+        """Total cash actually collected for this batch.
+
+        Chick sales: sum of payment_received on FINALIZED and CLOSED sales
+        that have lines referencing this batch, prorated by this batch's
+        share of each sale's line total.
+
+        Meat sales: sum of (weight_lb * price_per_lb) for all MeatSaleLines
+        on MeatSales linked to this batch — meat sales are always fully
+        committed at the time of entry, so no payment_received proration needed.
+
+        Outstanding balances on partial-payment (FINALIZED) chick sales are
+        intentionally excluded — only money in hand is counted.
+        """
+        from decimal import ROUND_HALF_UP
+        from django.db.models import Sum, F
+        from sales.models import MeatSaleLine, Sale
+
+        two = Decimal("0.01")
+
+        # ── Chick sale revenue ────────────────────────────────────────────
+        # For each committed sale that contains lines from this batch, we
+        # prorate payment_received by (this_batch_line_total / sale_total).
+        # This handles multi-batch sales correctly.
+        chick_revenue = Decimal("0")
+        lines = (
+            self.sale_lines
+            .filter(sale__status__in=["finalized", "closed"])
+            .select_related("sale")
+        )
+        for line in lines:
+            sale = line.sale
+            sale_total = sale.total_revenue   # cached_property on Sale
+            if sale_total > 0 and sale.payment_received is not None:
+                proportion = (line.line_total / sale_total)
+                chick_revenue += (sale.payment_received * proportion).quantize(two, rounding=ROUND_HALF_UP)
+
+        # ── Meat sale revenue ─────────────────────────────────────────────
+        meat_revenue = (
+            MeatSaleLine.objects
+            .filter(meat_sale__batch_id=self.pk)
+            .aggregate(s=Sum(F("weight_lb") * F("meat_sale__price_per_lb")))["s"]
+        ) or Decimal("0")
+
+        return (chick_revenue + meat_revenue).quantize(two)
 
     # ---- age tracking ------------------------------------------------------
 

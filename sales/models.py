@@ -237,6 +237,7 @@ class Adjustment(AuditedModel):
         DEATH        = "death",        "Death"
         DONATION     = "donation",     "Donation"
         PERSONAL_USE = "personal_use", "Personal Use"
+        DAMAGED      = "damaged",      "Damaged"
 
     batch = models.ForeignKey(
         "inventory.Batch", on_delete=models.CASCADE, related_name="adjustments"

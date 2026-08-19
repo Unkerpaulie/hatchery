@@ -47,17 +47,17 @@ def _adjustment_batches():
 
 
 def _adjustment_batch_label(obj):
-    """Batch label for adjustment form — shows status-appropriate quantity."""
-    status = obj.status
+    """Batch label for the adjustment form — shows status and adjustable quantity."""
     ceiling = obj.adjustment_ceiling
-    if status == Batch.Status.NEW:
+    status  = obj.get_status_display()
+    if obj.status == Batch.Status.NEW:
         return f"Batch #{obj.pk} (New) — {ceiling} egg(s)"
-    if status == Batch.Status.INCUBATING:
-        return f"Batch #{obj.pk} (Incubating) — {ceiling} chick(s) available"
-    if status == Batch.Status.HATCHED:
+    if obj.status == Batch.Status.INCUBATING:
+        return f"Batch #{obj.pk} (Incubating) — {ceiling} hatched chick(s) adjustable"
+    if obj.status == Batch.Status.HATCHED:
         return f"Batch #{obj.pk} (Hatched) — {ceiling} chick(s) available"
-    # RAISING or GROWN
-    return f"Batch #{obj.pk} ({obj.get_status_display()}) — {ceiling} bird(s)"
+    # RAISING, GROWN, or any future status — show bird count generically.
+    return f"Batch #{obj.pk} ({status}) — {ceiling} bird(s)"
 
 
 # ---- Customer --------------------------------------------------------------

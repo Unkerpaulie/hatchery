@@ -133,10 +133,10 @@ class BatchQuerySet(models.QuerySet):
                 # 4th pass: sale-availability and adjustment ceiling.
                 # Both reference birds_count and eggs_remaining from the 3rd pass.
                 #
-                # chicks_available: subset of birds_count available for chick sale.
-                #   INCUBATING → birds_count − eggs_remaining = only the hatched portion.
-                #   HATCHED    → birds_count − 0 = birds_count (all live birds are chicks).
-                #   RAISING/GROWN/NEW → 0 (not on the chick market).
+                # chicks_available: ceiling for CHICK sales only.
+                #   INCUBATING → hatched portion only (birds_count − eggs_remaining).
+                #   HATCHED    → birds_count (all remaining birds are chicks for sale).
+                #   All other statuses → 0.
                 chicks_available=Case(
                     When(
                         status__in=["hatched", "incubating"],
@@ -145,11 +145,19 @@ class BatchQuerySet(models.QuerySet):
                     default=zero_int,
                     output_field=IntegerField(),
                 ),
-                # adjustment_ceiling: maximum adjustable quantity.
-                #   = chicks_available for INCUBATING/HATCHED (adjustments affect live birds,
-                #     not unhatched eggs — those are captured by the mark_hatched auto-adjustment).
-                #   = birds_count for NEW/RAISING/GROWN (eggs_remaining is 0 in those phases).
-                adjustment_ceiling=F("birds_count") - F("eggs_remaining"),
+                # birds_available: ceiling for MEAT sales only.
+                #   GROWN → birds_count (all remaining birds are available for meat sale).
+                #   All other statuses → 0.
+                birds_available=Case(
+                    When(status="grown", then=F("birds_count")),
+                    default=zero_int,
+                    output_field=IntegerField(),
+                ),
+                # adjustment_ceiling: losses can occur at any lifecycle phase.
+                #   Always equals birds_count — the full living count with no
+                #   deduction for unhatched eggs, since an incubating egg that
+                #   dies is a real loss and must be recordable as an adjustment.
+                adjustment_ceiling=F("birds_count"),
             )
         )
 
@@ -404,25 +412,38 @@ class Batch(AuditedModel):
 
     @cached_property
     def chicks_available(self) -> int:
-        """Chicks available for sale: the subset of birds_count on the chick market.
+        """Ceiling for CHICK sales only.
 
-        INCUBATING → birds_count − eggs_remaining (only the hatched portion).
-        HATCHED    → birds_count (eggs_remaining is zero; all remaining birds are chicks).
-        All other statuses → 0 (not on the chick market).
+        INCUBATING → hatched portion only (birds_count − eggs_remaining).
+        HATCHED    → birds_count (all remaining birds are chicks for sale).
+        All other statuses → 0.
         """
-        if self.status not in (self.Status.HATCHED, self.Status.INCUBATING):
-            return 0
-        return self.birds_count - self.eggs_remaining
+        if self.status == self.Status.HATCHED:
+            return self.birds_count
+        if self.status == self.Status.INCUBATING:
+            return self.birds_count - self.eggs_remaining
+        return 0
+
+    @cached_property
+    def birds_available(self) -> int:
+        """Ceiling for MEAT sales only.
+
+        GROWN → birds_count (all remaining birds available for meat sale).
+        All other statuses → 0.
+        """
+        if self.status == self.Status.GROWN:
+            return self.birds_count
+        return 0
 
     @cached_property
     def adjustment_ceiling(self) -> int:
-        """Maximum adjustable quantity: birds_count minus any unhatched eggs.
+        """Ceiling for adjustments — losses can occur at any lifecycle phase.
 
-        During INCUBATING, only live hatched chicks can be adjusted (unhatched egg
-        failures are captured by the mark_hatched auto-adjustment, not individually).
-        For all other phases eggs_remaining is 0, so this equals birds_count.
+        Always equals birds_count: the full living count with no deduction
+        for unhatched eggs. An incubating egg that dies is a real loss
+        and must be recordable as an adjustment.
         """
-        return self.birds_count - self.eggs_remaining
+        return self.birds_count
 
     @cached_property
     def revenue(self) -> Decimal:

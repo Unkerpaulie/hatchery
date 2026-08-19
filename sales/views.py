@@ -696,12 +696,12 @@ class MeatSaleCalculateView(LoginRequiredMixin, View):
             return JsonResponse({"error": "Please enter at least one weight."}, status=400)
 
         # ── Check availability ──────────────────────────────────────────────
-        if len(parsed) > batch.birds_count:
+        if len(parsed) > batch.birds_available:
             return JsonResponse(
                 {
                     "error": (
                         f"You entered {len(parsed)} weight(s) but Batch #{batch.pk} "
-                        f"only has {batch.birds_count} bird(s) available."
+                        f"only has {batch.birds_available} bird(s) available."
                     )
                 },
                 status=400,

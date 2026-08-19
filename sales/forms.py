@@ -53,7 +53,7 @@ def _adjustment_batch_label(obj):
     if obj.status == Batch.Status.NEW:
         return f"Batch #{obj.pk} (New) — {ceiling} egg(s)"
     if obj.status == Batch.Status.INCUBATING:
-        return f"Batch #{obj.pk} (Incubating) — {ceiling} hatched chick(s) adjustable"
+        return f"Batch #{obj.pk} (Incubating) — {ceiling} egg(s) / chick(s) adjustable"
     if obj.status == Batch.Status.HATCHED:
         return f"Batch #{obj.pk} (Hatched) — {ceiling} chick(s) available"
     # RAISING, GROWN, or any future status — show bird count generically.
@@ -213,13 +213,13 @@ def _meat_batches():
     """Annotated queryset of GROWN batches that still have birds available for meat sale."""
     return (
         Batch.objects.with_inventory()
-        .filter(status=Batch.Status.GROWN, birds_count__gt=0)
+        .filter(status=Batch.Status.GROWN, birds_available__gt=0)
         .order_by("id")
     )
 
 
 def _meat_batch_label(obj):
-    return f"Batch #{obj.pk} (Grown) — {obj.birds_count} bird(s) available"
+    return f"Batch #{obj.pk} (Grown) — {obj.birds_available} bird(s) available"
 
 
 # ---- Meat sale form --------------------------------------------------------
@@ -321,9 +321,9 @@ class MeatSaleForm(forms.ModelForm):
         weights = cleaned.get("weights")  # list of Decimals after clean_weights
         if batch and weights:
             batch_inv = Batch.objects.with_inventory().get(pk=batch.pk)
-            if len(weights) > batch_inv.birds_count:
+            if len(weights) > batch_inv.birds_available:
                 raise forms.ValidationError(
                     f"You entered {len(weights)} weight(s) but Batch #{batch.pk} "
-                    f"only has {batch_inv.birds_count} bird(s) available."
+                    f"only has {batch_inv.birds_available} bird(s) available."
                 )
         return cleaned

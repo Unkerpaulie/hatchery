@@ -106,17 +106,9 @@ class CustomerForm(forms.ModelForm):
             "notes":           forms.Textarea(attrs=_TEXTAREA),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # When rendering an edit form, stored values are digit-only strings
-        # (e.g. "18681234567"). Prepend '+' so intl-tel-input can parse the
-        # country code and show the correct flag on page load.
-        for field in ("phone_1", "phone_2", "phone_3"):
-            val = self.initial.get(field, "")
-            if val and str(val).isdigit():
-                self.initial[field] = f"+{val}"
-
-    # ---- normalise phone fields on every save ------------------------------
+    # Phone normalisation only — no __init__ needed for display prepopulation.
+    # The customer_form.html template reads phone values directly from
+    # form.phone_N.value into hidden inputs; intl-tel-input reads those on load.
 
     def clean_phone_1(self):
         return _strip_phone(self.cleaned_data.get("phone_1", ""))

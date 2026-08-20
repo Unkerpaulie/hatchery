@@ -18,7 +18,7 @@
 
 <div class="card shadow mb-4">
     <div class="card-body">
-        <form method="post" novalidate autocomplete="off">
+        <form method="post" novalidate autocomplete="off" id="supplierForm">
             {% csrf_token %}
 
             {# ── Business details ─────────────────────────────────────── #}
@@ -47,10 +47,15 @@
             </div>
 
             {# ── Phone entries ────────────────────────────────────────── #}
+
+            {# Phone 1 #}
             <div class="form-row align-items-end">
                 <div class="form-group col-md-5">
                     <label>Phone 1</label>
-                    {{ form.phone_1 }}
+                    <input type="hidden" name="phone_1" id="id_phone_1_hidden"
+                           value="{{ form.phone_1.value|default:'' }}">
+                    <input type="tel" id="id_phone_1_display"
+                           class="form-control" autocomplete="off">
                 </div>
                 <div class="form-group col-md-3">
                     <label>Type</label>
@@ -63,10 +68,15 @@
                     </div>
                 </div>
             </div>
+
+            {# Phone 2 #}
             <div class="form-row align-items-end">
                 <div class="form-group col-md-5">
                     <label>Phone 2</label>
-                    {{ form.phone_2 }}
+                    <input type="hidden" name="phone_2" id="id_phone_2_hidden"
+                           value="{{ form.phone_2.value|default:'' }}">
+                    <input type="tel" id="id_phone_2_display"
+                           class="form-control" autocomplete="off">
                 </div>
                 <div class="form-group col-md-3">
                     <label>Type</label>
@@ -79,10 +89,15 @@
                     </div>
                 </div>
             </div>
+
+            {# Phone 3 #}
             <div class="form-row align-items-end">
                 <div class="form-group col-md-5">
                     <label>Phone 3</label>
-                    {{ form.phone_3 }}
+                    <input type="hidden" name="phone_3" id="id_phone_3_hidden"
+                           value="{{ form.phone_3.value|default:'' }}">
+                    <input type="tel" id="id_phone_3_display"
+                           class="form-control" autocomplete="off">
                 </div>
                 <div class="form-group col-md-3">
                     <label>Type</label>
@@ -125,33 +140,43 @@
 <script>
 (function () {
     'use strict';
-    var UTILS = 'https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/utils.js';
+
+    var SLOTS = [
+        ['id_phone_1_display', 'id_phone_1_hidden'],
+        ['id_phone_2_display', 'id_phone_2_hidden'],
+        ['id_phone_3_display', 'id_phone_3_hidden'],
+    ];
 
     document.addEventListener('DOMContentLoaded', function () {
-        var inputs    = Array.from(document.querySelectorAll('[data-phone-input]'));
-        var instances = inputs.map(function (input) {
-            var iti = window.intlTelInput(input, {
-                initialCountry:    'tt',
-                separateDialCode:  true,
+        var instances = SLOTS.map(function (pair) {
+            var display = document.getElementById(pair[0]);
+            var hidden  = document.getElementById(pair[1]);
+
+            var iti = window.intlTelInput(display, {
+                initialCountry:     'tt',
+                separateDialCode:   true,
                 preferredCountries: ['tt', 'us', 'gb', 'ca'],
-                utilsScript:       UTILS,
+                utilsScript: 'https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/utils.js',
             });
-            var stored = input.value.trim();
-            if (stored && /^[0-9]+$/.test(stored)) {
-                iti.promise.then(function () { iti.setNumber('+' + stored); });
+
+            var stored = (hidden.value || '').trim();
+            if (stored) {
+                var withPlus = stored.startsWith('+') ? stored : '+' + stored;
+                iti.promise.then(function () {
+                    iti.setNumber(withPlus);
+                });
             }
-            return iti;
+
+            return { iti: iti, display: display, hidden: hidden };
         });
 
-        var form = document.querySelector('form');
-        if (form) {
-            form.addEventListener('submit', function () {
-                instances.forEach(function (iti, i) {
-                    var e164 = iti.getNumber();
-                    if (e164) { inputs[i].value = e164.replace(/\D/g, ''); }
-                });
+        var form = document.getElementById('supplierForm');
+        form.addEventListener('submit', function () {
+            instances.forEach(function (obj) {
+                var e164 = obj.iti.getNumber();
+                obj.hidden.value = e164 ? e164.replace(/\D/g, '') : '';
             });
-        }
+        });
     });
 }());
 </script>

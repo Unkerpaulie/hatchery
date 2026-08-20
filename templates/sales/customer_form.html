@@ -4,7 +4,6 @@
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/css/intlTelInput.css">
 <style>
-    /* Ensure the intl-tel-input wrapper fills its Bootstrap column */
     .iti { width: 100%; }
 </style>
 {% endblock %}
@@ -18,7 +17,7 @@
 
 <div class="card shadow mb-4">
     <div class="card-body">
-        <form method="post" novalidate autocomplete="off">
+        <form method="post" novalidate autocomplete="off" id="customerForm">
             {% csrf_token %}
 
             {# ── Name & Email ─────────────────────────────────────────── #}
@@ -36,10 +35,21 @@
             </div>
 
             {# ── Phone entries ────────────────────────────────────────── #}
+            {% for slot in "123" %}
+            {% with phone_field=form|dictsort:slot %}
+            {% endwith %}
+            {% endfor %}
+
+            {# Phone 1 #}
             <div class="form-row align-items-end">
                 <div class="form-group col-md-5">
                     <label>Phone 1</label>
-                    {{ form.phone_1 }}
+                    {# Hidden input carries the actual submitted value (E.164 digits). #}
+                    {# The visible widget is purely for UX — JS copies into hidden on submit. #}
+                    <input type="hidden" name="phone_1" id="id_phone_1_hidden"
+                           value="{{ form.phone_1.value|default:'' }}">
+                    <input type="tel" id="id_phone_1_display"
+                           class="form-control" autocomplete="off">
                 </div>
                 <div class="form-group col-md-3">
                     <label>Type</label>
@@ -52,10 +62,15 @@
                     </div>
                 </div>
             </div>
+
+            {# Phone 2 #}
             <div class="form-row align-items-end">
                 <div class="form-group col-md-5">
                     <label>Phone 2</label>
-                    {{ form.phone_2 }}
+                    <input type="hidden" name="phone_2" id="id_phone_2_hidden"
+                           value="{{ form.phone_2.value|default:'' }}">
+                    <input type="tel" id="id_phone_2_display"
+                           class="form-control" autocomplete="off">
                 </div>
                 <div class="form-group col-md-3">
                     <label>Type</label>
@@ -68,10 +83,15 @@
                     </div>
                 </div>
             </div>
+
+            {# Phone 3 #}
             <div class="form-row align-items-end">
                 <div class="form-group col-md-5">
                     <label>Phone 3</label>
-                    {{ form.phone_3 }}
+                    <input type="hidden" name="phone_3" id="id_phone_3_hidden"
+                           value="{{ form.phone_3.value|default:'' }}">
+                    <input type="tel" id="id_phone_3_display"
+                           class="form-control" autocomplete="off">
                 </div>
                 <div class="form-group col-md-3">
                     <label>Type</label>
@@ -114,42 +134,52 @@
 <script>
 (function () {
     'use strict';
-    var UTILS = 'https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/utils.js';
+
+    // Each entry: [display input id, hidden input id]
+    var SLOTS = [
+        ['id_phone_1_display', 'id_phone_1_hidden'],
+        ['id_phone_2_display', 'id_phone_2_hidden'],
+        ['id_phone_3_display', 'id_phone_3_hidden'],
+    ];
 
     document.addEventListener('DOMContentLoaded', function () {
-        // Attach intl-tel-input to every input tagged with data-phone-input.
-        var inputs   = Array.from(document.querySelectorAll('[data-phone-input]'));
-        var instances = inputs.map(function (input) {
-            var iti = window.intlTelInput(input, {
-                initialCountry:    'tt',
-                separateDialCode:  true,
+        var instances = SLOTS.map(function (pair) {
+            var display = document.getElementById(pair[0]);
+            var hidden  = document.getElementById(pair[1]);
+
+            var iti = window.intlTelInput(display, {
+                initialCountry:     'tt',
+                separateDialCode:   true,
                 preferredCountries: ['tt', 'us', 'gb', 'ca'],
-                utilsScript:       UTILS,
+                utilsScript: 'https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/utils.js',
             });
 
-            // When the form re-renders after a validation error, the phone
-            // field holds raw digits (e.g. "18681234567").  Wait for utils to
-            // load, then set the number with a '+' prefix so the country flag
-            // is resolved correctly.
-            var stored = input.value.trim();
-            if (stored && /^[0-9]+$/.test(stored)) {
-                iti.promise.then(function () { iti.setNumber('+' + stored); });
+            // On load: if the hidden input already holds a stored digit string
+            // (edit form), pre-populate the display widget with '+' + digits so
+            // intl-tel-input can resolve the correct country and format.
+            var stored = (hidden.value || '').trim();
+            if (stored) {
+                var withPlus = stored.startsWith('+') ? stored : '+' + stored;
+                // Wait for utils to load before calling setNumber so formatting works.
+                iti.promise.then(function () {
+                    iti.setNumber(withPlus);
+                });
             }
-            return iti;
+
+            return { iti: iti, display: display, hidden: hidden };
         });
 
-        // Before submitting, replace each visible input with E.164 digits only.
-        var form = document.querySelector('form');
-        if (form) {
-            form.addEventListener('submit', function () {
-                instances.forEach(function (iti, i) {
-                    var e164 = iti.getNumber(); // e.g. "+18681234567"
-                    if (e164) {
-                        inputs[i].value = e164.replace(/\D/g, ''); // "18681234567"
-                    }
-                });
+        // On submit: read the full E.164 number from each widget instance and
+        // write digits-only into the hidden field. The display input has no
+        // name attribute so it is never submitted — only the hidden field is.
+        var form = document.getElementById('customerForm');
+        form.addEventListener('submit', function () {
+            instances.forEach(function (obj) {
+                var e164 = obj.iti.getNumber(); // e.g. "+18687654321"
+                // Strip to digits only; empty string if nothing entered.
+                obj.hidden.value = e164 ? e164.replace(/\D/g, '') : '';
             });
-        }
+        });
     });
 }());
 </script>

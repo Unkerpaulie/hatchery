@@ -30,7 +30,7 @@
                 <tbody>
                 {% for adj in adjustments %}
                     <tr>
-                        <td>{{ adj.date }}</td>
+                        <td data-order="{{ adj.date|date:'Y-m-d' }}">{{ adj.date }}</td>
                         <td>
                             <a href="{% url 'inventory:batch_detail' adj.batch_id %}">
                                 Batch #{{ adj.batch_id }}
@@ -54,6 +54,9 @@
 <script src="{% static 'vendor/datatables/jquery.dataTables.min.js' %}"></script>
 <script src="{% static 'vendor/datatables/dataTables.bootstrap4.min.js' %}"></script>
 <script>
-    $('#adjustmentsTable').DataTable({ order: [[0, 'desc']] });
+    $('#adjustmentsTable').DataTable({
+        order: [[0, 'desc']],
+        columnDefs: [{ type: 'num', targets: 0 }]
+    });
 </script>
 {% endblock %}

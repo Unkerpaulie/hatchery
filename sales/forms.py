@@ -165,37 +165,82 @@ class SaleLineForm(forms.ModelForm):
 class AdjustmentForm(forms.ModelForm):
     class Meta:
         model = Adjustment
-        fields = ["batch", "date", "quantity", "adjustment_type", "reason"]
+        fields = ["batch", "adjustment_target", "date", "quantity", "adjustment_type", "reason"]
         widgets = {
-            "batch":           forms.Select(attrs=_SELECT),
-            "date":            forms.DateInput(attrs=_DATE),
-            "quantity":        forms.NumberInput(attrs=_NUMBER),
-            "adjustment_type": forms.Select(attrs=_SELECT),
-            "reason":          forms.TextInput(attrs=_TEXT),
+            "batch":             forms.Select(attrs=_SELECT),
+            "adjustment_target": forms.Select(attrs=_SELECT),
+            "date":              forms.DateInput(attrs=_DATE),
+            "quantity":          forms.NumberInput(attrs=_NUMBER),
+            "adjustment_type":   forms.Select(attrs=_SELECT),
+            "reason":            forms.TextInput(attrs=_TEXT),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["batch"].queryset = _adjustment_batches()
+        batches = list(_adjustment_batches())
+        self.fields["batch"].queryset = Batch.objects.with_inventory().filter(
+            pk__in=[b.pk for b in batches]
+        ).order_by("id")
         self.fields["batch"].label_from_instance = _adjustment_batch_label
         self.fields["batch"].empty_label = "— Select a batch —"
+        self.fields["adjustment_target"].required = False
+
+        # Build a JSON map of batch pk → {status, eggs_remaining, chicks_available}
+        # so the template JS can show/hide the target dropdown and set ceilings
+        # without a round-trip to the server.
+        import json
+        batch_data = {}
+        for b in batches:
+            batch_data[str(b.pk)] = {
+                "status":           b.status,
+                "eggs_remaining":   b.eggs_remaining,
+                "chicks_available": b.chicks_available,
+                "adjustment_ceiling": b.adjustment_ceiling,
+            }
+        self.batch_data_json = json.dumps(batch_data)
 
     def clean(self):
         cleaned = super().clean()
-        batch = cleaned.get("batch")
-        qty   = cleaned.get("quantity")
+        batch  = cleaned.get("batch")
+        qty    = cleaned.get("quantity")
+        target = cleaned.get("adjustment_target", "")
+
         if batch and qty:
+            from inventory.models import Batch as BatchModel
+            b = Batch.objects.with_inventory().get(pk=batch.pk)
             prior = 0
             if self.instance.pk:
                 prior = Adjustment.objects.filter(pk=self.instance.pk).values_list(
                     "quantity", flat=True
                 ).first() or 0
-            ceiling = batch.adjustment_ceiling + prior
-            if qty > ceiling:
-                self.add_error(
-                    "quantity",
-                    f"Only {ceiling} available to adjust in Batch #{batch.pk}.",
-                )
+
+            if b.status == BatchModel.Status.INCUBATING:
+                if not target:
+                    self.add_error(
+                        "adjustment_target",
+                        "Please specify whether this loss is an egg or a chick.",
+                    )
+                elif target == "egg":
+                    ceiling = b.eggs_remaining + prior
+                    if qty > ceiling:
+                        self.add_error(
+                            "quantity",
+                            f"Only {ceiling} egg(s) remaining in Batch #{batch.pk}.",
+                        )
+                else:  # chick
+                    ceiling = b.chicks_available + prior
+                    if qty > ceiling:
+                        self.add_error(
+                            "quantity",
+                            f"Only {ceiling} hatched chick(s) available in Batch #{batch.pk}.",
+                        )
+            else:
+                ceiling = b.adjustment_ceiling + prior
+                if qty > ceiling:
+                    self.add_error(
+                        "quantity",
+                        f"Only {ceiling} available to adjust in Batch #{batch.pk}.",
+                    )
         return cleaned
 
 

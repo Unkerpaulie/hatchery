@@ -231,6 +231,12 @@ class MeatSaleLine(models.Model):
 class Adjustment(AuditedModel):
     """Non-sale removal from inventory (death, donation, personal use, etc.).
     Created from the Sales section per the PRD clarification.
+
+    For INCUBATING batches, ``adjustment_target`` specifies whether the loss
+    is an egg or a hatched chick. This matters because the inventory formula
+    separates eggs_remaining from chicks_available during incubation.
+    For all other statuses, target is left blank (everything is a bird/egg
+    and the distinction is meaningless).
     """
 
     class AdjustmentType(models.TextChoices):
@@ -238,6 +244,10 @@ class Adjustment(AuditedModel):
         DONATION     = "donation",     "Donation"
         PERSONAL_USE = "personal_use", "Personal Use"
         DAMAGED      = "damaged",      "Damaged"
+
+    class AdjustmentTarget(models.TextChoices):
+        EGG   = "egg",   "Egg"
+        CHICK = "chick", "Chick"
 
     batch = models.ForeignKey(
         "inventory.Batch", on_delete=models.CASCADE, related_name="adjustments"
@@ -250,6 +260,13 @@ class Adjustment(AuditedModel):
         default=AdjustmentType.DEATH,
         help_text="Category of inventory adjustment.",
     )
+    adjustment_target = models.CharField(
+        max_length=5,
+        choices=AdjustmentTarget.choices,
+        blank=True,
+        default="",
+        help_text="Egg or chick? Only required for INCUBATING batches.",
+    )
     reason = models.CharField(max_length=200)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -261,6 +278,8 @@ class Adjustment(AuditedModel):
         return f"Adjustment {self.quantity} from batch #{self.batch_id} ({self.reason})"
 
     def clean(self):
+        from inventory.models import Batch  # lazy import — avoids circular dependency
+
         if self.quantity is None or self.quantity <= 0:
             raise ValidationError({"quantity": "Quantity must be greater than zero."})
         if not self.reason:
@@ -268,15 +287,33 @@ class Adjustment(AuditedModel):
         if self.batch_id is None:
             return
 
+        batch = Batch.objects.with_inventory().get(pk=self.batch_id)
         prior_quantity = 0
         if self.pk:
             prior_quantity = Adjustment.objects.filter(pk=self.pk).values_list(
                 "quantity", flat=True
             ).first() or 0
-        ceiling = self.batch.adjustment_ceiling + prior_quantity
+
+        if batch.status == Batch.Status.INCUBATING:
+            # For INCUBATING batches the ceiling depends on what is being adjusted.
+            if not self.adjustment_target:
+                raise ValidationError(
+                    {"adjustment_target": "Please specify whether this loss is an egg or a chick."}
+                )
+            if self.adjustment_target == "egg":
+                ceiling = batch.eggs_remaining + prior_quantity
+                label = "egg(s) remaining"
+            else:  # chick
+                ceiling = batch.chicks_available + prior_quantity
+                label = "hatched chick(s) available"
+        else:
+            # All other statuses: full living count is adjustable.
+            ceiling = batch.adjustment_ceiling + prior_quantity
+            label = "available to adjust"
+
         if self.quantity > ceiling:
             raise ValidationError({
                 "quantity": (
-                    f"Only {ceiling} available to adjust in batch #{self.batch_id}."
+                    f"Only {ceiling} {label} in Batch #{self.batch_id}."
                 ),
             })

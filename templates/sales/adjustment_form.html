@@ -10,22 +10,45 @@
     <div class="card-body">
         <form method="post" novalidate autocomplete="off">
             {% csrf_token %}
-            <div class="form-row">
-                <div class="form-group col-md-6">
+
+            {# ── Row 1: Batch / [Target] / Date ──────────────────────────── #}
+            {# On desktop the target dropdown is hidden and takes no space until
+               an INCUBATING batch is selected, at which point the row reflows:
+               batch → col-md-6, target → col-md-3, date → col-md-3.
+               On mobile all three stack full-width. #}
+            <div class="form-row" id="batchDateRow">
+
+                <div class="form-group col-md-6" id="batchCol">
                     <label>Batch <span class="text-danger">*</span></label>
                     {{ form.batch }}
                     {% if form.batch.errors %}
                         <div class="invalid-feedback d-block">{{ form.batch.errors|join:", " }}</div>
                     {% endif %}
                 </div>
-                <div class="form-group col-md-6">
+
+                {# Target column — hidden by default, shown for INCUBATING batches #}
+                <div class="form-group col-12 col-md-3 d-none" id="targetCol">
+                    <label>Loss type <span class="text-danger">*</span></label>
+                    {{ form.adjustment_target }}
+                    {% if form.adjustment_target.errors %}
+                        <div class="invalid-feedback d-block">{{ form.adjustment_target.errors|join:", " }}</div>
+                    {% endif %}
+                    <small class="form-text text-muted">
+                        Specify whether the loss is an egg or a hatched chick.
+                    </small>
+                </div>
+
+                <div class="form-group col-md-6" id="dateCol">
                     <label>Date <span class="text-danger">*</span></label>
                     {{ form.date }}
                     {% if form.date.errors %}
                         <div class="invalid-feedback d-block">{{ form.date.errors|join:", " }}</div>
                     {% endif %}
                 </div>
+
             </div>
+
+            {# ── Row 2: Quantity / Type / Reason ─────────────────────────── #}
             <div class="form-row">
                 <div class="form-group col-md-4">
                     <label>Quantity <span class="text-danger">*</span></label>
@@ -33,6 +56,8 @@
                     {% if form.quantity.errors %}
                         <div class="invalid-feedback d-block">{{ form.quantity.errors|join:", " }}</div>
                     {% endif %}
+                    {# JS updates this hint when batch + target are selected #}
+                    <small class="form-text text-muted" id="quantityHint"></small>
                 </div>
                 <div class="form-group col-md-4">
                     <label>Type <span class="text-danger">*</span></label>
@@ -49,9 +74,11 @@
                     {% endif %}
                 </div>
             </div>
+
             {% if form.non_field_errors %}
                 <div class="alert alert-danger">{{ form.non_field_errors }}</div>
             {% endif %}
+
             <hr>
             <div class="d-flex justify-content-end">
                 <button type="submit" class="btn btn-primary">
@@ -62,4 +89,77 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    // Batch inventory data injected by AdjustmentCreateView.get_context_data().
+    // Map of str(batch.pk) → {status, eggs_remaining, chicks_available, adjustment_ceiling}
+    var BATCH_DATA = {{ batch_data_json|safe }};
+
+    var batchSelect  = document.getElementById('id_batch');
+    var targetSelect = document.getElementById('id_adjustment_target');
+    var targetCol    = document.getElementById('targetCol');
+    var batchCol     = document.getElementById('batchCol');
+    var dateCol      = document.getElementById('dateCol');
+    var qtyHint      = document.getElementById('quantityHint');
+    var qtyInput     = document.getElementById('id_quantity');
+
+    function updateLayout() {
+        var pk   = batchSelect.value;
+        var data = pk ? BATCH_DATA[pk] : null;
+        var isIncubating = data && data.status === 'incubating';
+
+        if (isIncubating) {
+            // Show target column: batch→6, target→3, date→3
+            targetCol.classList.remove('d-none');
+            batchCol.className  = 'form-group col-md-6';
+            dateCol.className   = 'form-group col-md-3';
+        } else {
+            // Hide target column: batch→6, date→6
+            targetCol.classList.add('d-none');
+            targetSelect.value  = '';
+            batchCol.className  = 'form-group col-md-6';
+            dateCol.className   = 'form-group col-md-6';
+        }
+
+        updateHint(data, isIncubating);
+    }
+
+    function updateHint(data, isIncubating) {
+        if (!data) {
+            qtyHint.textContent = '';
+            return;
+        }
+
+        if (isIncubating) {
+            var target = targetSelect.value;
+            if (target === 'egg') {
+                qtyHint.textContent = 'Max: ' + data.eggs_remaining + ' egg(s) remaining.';
+            } else if (target === 'chick') {
+                qtyHint.textContent = 'Max: ' + data.chicks_available + ' hatched chick(s).';
+            } else {
+                qtyHint.textContent = 'Select loss type to see available quantity.';
+            }
+        } else {
+            qtyHint.textContent = 'Max: ' + data.adjustment_ceiling + ' available.';
+        }
+    }
+
+    // Wire events
+    batchSelect.addEventListener('change', updateLayout);
+    targetSelect.addEventListener('change', function () {
+        var pk   = batchSelect.value;
+        var data = pk ? BATCH_DATA[pk] : null;
+        updateHint(data, data && data.status === 'incubating');
+    });
+
+    // Run on page load in case the form is re-rendered with a prior value
+    // (e.g. validation failure returns the form with fields pre-filled).
+    updateLayout();
+}());
+</script>
 {% endblock %}

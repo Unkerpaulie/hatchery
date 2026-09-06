@@ -496,6 +496,11 @@ class AdjustmentCreateView(AuditMixin, LoginRequiredMixin, CreateView):
     template_name = "sales/adjustment_form.html"
     success_url = reverse_lazy("sales:adjustment_list")
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["batch_data_json"] = self.get_form().batch_data_json
+        return ctx
+
     def form_valid(self, form):
         messages.success(self.request, "Adjustment recorded.")
         return super().form_valid(form)

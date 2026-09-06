@@ -1,0 +1,214 @@
+{% comment %}
+Shared phone number confirmation logic.
+Included by customer_form.html and supplier_form.html.
+
+Requires:
+  - intlTelInput JS already loaded on the page
+  - A <form> with id="{{ form_id }}"
+  - Three input pairs:
+      plain text input  id="id_phone_N_input"   (what the user types)
+      hidden input      id="id_phone_N_hidden"   (what gets submitted)
+  - Bootstrap 4 modal support
+
+Behaviour:
+  - Input fields accept digits only (other characters stripped on input event)
+  - On Save: resolves each non-empty number via intl-tel-input, shows
+    a confirmation modal with the flag + formatted number for each
+  - Confirm: copies digits-only to hidden fields, submits the form
+  - Cancel: returns to the form unchanged
+{% endcomment %}
+
+{# ── Confirmation modal ───────────────────────────────────────────────────── #}
+<div class="modal fade" id="phoneConfirmModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Phone Numbers</h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    Please confirm the numbers below are correct before saving.
+                    If a flag or country looks wrong, cancel and re-enter the
+                    full number including the country code.
+                </p>
+                <div id="phoneConfirmList"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    Cancel — go back and fix
+                </button>
+                <button type="button" class="btn btn-primary" id="phoneConfirmSave">
+                    <i class="fas fa-save mr-1"></i> Looks good — save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Off-screen container for temporary intl-tel-input instances ─────────── #}
+<div id="itiSandbox" style="position:absolute;left:-9999px;top:-9999px;visibility:hidden;"
+     aria-hidden="true"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/intlTelInput.min.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    var UTILS_URL = 'https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/utils.js';
+
+    // Phone slot definitions: [visible input id, hidden input id, label]
+    var SLOTS = [
+        ['id_phone_1_input', 'id_phone_1_hidden', 'Phone 1'],
+        ['id_phone_2_input', 'id_phone_2_hidden', 'Phone 2'],
+        ['id_phone_3_input', 'id_phone_3_hidden', 'Phone 3'],
+    ];
+
+    // ── Digits-only enforcement ───────────────────────────────────────────
+    // Strip any non-digit character the moment it is typed or pasted.
+    SLOTS.forEach(function (slot) {
+        var input = document.getElementById(slot[0]);
+        if (!input) return;
+        input.addEventListener('input', function () {
+            var pos = input.selectionStart;
+            var cleaned = input.value.replace(/\D/g, '');
+            if (cleaned !== input.value) {
+                input.value = cleaned;
+                // Restore cursor position after stripping
+                input.setSelectionRange(pos - 1, pos - 1);
+            }
+        });
+    });
+
+    // ── Pre-populate visible inputs from stored hidden values (edit form) ─
+    // Show the stored digits directly — no widget, no guessing.
+    document.addEventListener('DOMContentLoaded', function () {
+        SLOTS.forEach(function (slot) {
+            var visible = document.getElementById(slot[0]);
+            var hidden  = document.getElementById(slot[1]);
+            if (!visible || !hidden) return;
+            var stored = (hidden.value || '').replace(/\D/g, '');
+            if (stored) visible.value = stored;
+        });
+    });
+
+    // ── Save intercept ────────────────────────────────────────────────────
+    var form         = document.getElementById('{{ form_id }}');
+    var confirmModal = document.getElementById('phoneConfirmModal');
+    var confirmList  = document.getElementById('phoneConfirmList');
+    var confirmSave  = document.getElementById('phoneConfirmSave');
+    var sandbox      = document.getElementById('itiSandbox');
+
+    // Resolved results: [{label, digits, formatted, flagHtml}]
+    var resolved = [];
+    // Whether we are in confirmed-submit mode
+    var confirming = false;
+
+    form.addEventListener('submit', function (e) {
+        if (confirming) return; // second pass — let it through
+        e.preventDefault();
+
+        // Collect non-empty slots
+        var toResolve = [];
+        SLOTS.forEach(function (slot) {
+            var visible = document.getElementById(slot[0]);
+            if (!visible) return;
+            var digits = visible.value.replace(/\D/g, '');
+            if (digits) toResolve.push({ slot: slot, digits: digits });
+        });
+
+        if (toResolve.length === 0) {
+            // No phone numbers entered — submit directly, no confirmation needed
+            confirming = true;
+            form.submit();
+            return;
+        }
+
+        // Spin up temporary off-screen intl-tel-input instances for resolution
+        // We must wait for utils to load before getNumber() works.
+        resolved = [];
+        sandbox.innerHTML = '';
+
+        var tempInputs = toResolve.map(function (item) {
+            var el = document.createElement('input');
+            el.type = 'tel';
+            sandbox.appendChild(el);
+            var iti = window.intlTelInput(el, {
+                utilsScript: UTILS_URL,
+            });
+            return { iti: iti, el: el, item: item };
+        });
+
+        // Wait for utils to load across all instances
+        Promise.all(tempInputs.map(function (t) { return t.iti.promise; }))
+            .then(function () {
+                tempInputs.forEach(function (t) {
+                    t.iti.setNumber('+' + t.item.digits);
+                    var countryData = t.iti.getSelectedCountryData();
+                    var formatted   = t.iti.getNumber(
+                        window.intlTelInputUtils
+                            ? intlTelInputUtils.numberFormat.INTERNATIONAL
+                            : 0
+                    );
+                    var flag = countryData.iso2
+                        ? '<span class="iti__flag iti__' + countryData.iso2 + '" style="display:inline-block;margin-right:8px;vertical-align:middle;"></span>'
+                        : '';
+                    resolved.push({
+                        slot:      t.item.slot,
+                        digits:    t.item.digits,
+                        formatted: formatted || ('+' + t.item.digits),
+                        flagHtml:  flag,
+                        label:     t.item.slot[2],
+                    });
+                    // Destroy temp instance
+                    t.iti.destroy();
+                });
+                sandbox.innerHTML = '';
+
+                // Build confirmation list
+                confirmList.innerHTML = '';
+                if (resolved.length === 0) {
+                    confirming = true;
+                    form.submit();
+                    return;
+                }
+                resolved.forEach(function (r) {
+                    var row = document.createElement('div');
+                    row.className = 'mb-2 p-2 border rounded d-flex align-items-center';
+                    row.innerHTML =
+                        '<strong class="mr-3" style="min-width:60px;">' + r.label + '</strong>' +
+                        r.flagHtml +
+                        '<span>' + r.formatted + '</span>';
+                    confirmList.appendChild(row);
+                });
+
+                $(confirmModal).modal('show');
+            });
+    });
+
+    // ── Confirm button: write hidden fields and submit ─────────────────────
+    confirmSave.addEventListener('click', function () {
+        // Write digits-only into each hidden field
+        SLOTS.forEach(function (slot) {
+            var hidden = document.getElementById(slot[1]);
+            if (!hidden) return;
+            // Find resolution for this slot (if any)
+            var match = null;
+            resolved.forEach(function (r) {
+                if (r.slot[1] === slot[1]) match = r;
+            });
+            if (match) {
+                hidden.value = match.digits;
+            } else {
+                // Field was empty — leave hidden value as-is (blank or stored)
+                var visible = document.getElementById(slot[0]);
+                hidden.value = visible ? visible.value.replace(/\D/g, '') : '';
+            }
+        });
+        $(confirmModal).modal('hide');
+        confirming = true;
+        form.submit();
+    });
+
+}());
+</script>

@@ -4,9 +4,6 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/css/intlTelInput.css">
-<style>
-    .iti { width: 100%; }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -46,16 +43,15 @@
                 </div>
             </div>
 
-            {# ── Phone entries ────────────────────────────────────────── #}
-
-            {# Phone 1 #}
+            {# ── Phone 1 ──────────────────────────────────────────────── #}
             <div class="form-row align-items-end">
                 <div class="form-group col-md-5">
                     <label>Phone 1</label>
                     <input type="hidden" name="phone_1" id="id_phone_1_hidden"
                            value="{{ form.phone_1.value|default:'' }}">
-                    <input type="tel" id="id_phone_1_display"
-                           class="form-control" autocomplete="off">
+                    <input type="text" inputmode="numeric" id="id_phone_1_input"
+                           class="form-control" autocomplete="off" maxlength="15">
+                    <small class="form-text text-muted">Enter full number with country code, digits only (e.g. 18685551234)</small>
                 </div>
                 <div class="form-group col-md-3">
                     <label>Type</label>
@@ -69,14 +65,14 @@
                 </div>
             </div>
 
-            {# Phone 2 #}
+            {# ── Phone 2 ──────────────────────────────────────────────── #}
             <div class="form-row align-items-end">
                 <div class="form-group col-md-5">
                     <label>Phone 2</label>
                     <input type="hidden" name="phone_2" id="id_phone_2_hidden"
                            value="{{ form.phone_2.value|default:'' }}">
-                    <input type="tel" id="id_phone_2_display"
-                           class="form-control" autocomplete="off">
+                    <input type="text" inputmode="numeric" id="id_phone_2_input"
+                           class="form-control" autocomplete="off" maxlength="15">
                 </div>
                 <div class="form-group col-md-3">
                     <label>Type</label>
@@ -90,14 +86,14 @@
                 </div>
             </div>
 
-            {# Phone 3 #}
+            {# ── Phone 3 ──────────────────────────────────────────────── #}
             <div class="form-row align-items-end">
                 <div class="form-group col-md-5">
                     <label>Phone 3</label>
                     <input type="hidden" name="phone_3" id="id_phone_3_hidden"
                            value="{{ form.phone_3.value|default:'' }}">
-                    <input type="tel" id="id_phone_3_display"
-                           class="form-control" autocomplete="off">
+                    <input type="text" inputmode="numeric" id="id_phone_3_input"
+                           class="form-control" autocomplete="off" maxlength="15">
                 </div>
                 <div class="form-group col-md-3">
                     <label>Type</label>
@@ -111,7 +107,7 @@
                 </div>
             </div>
 
-            {# ── Address & Notes ─────────────────────────────────────── #}
+            {# ── Address & Notes ──────────────────────────────────────── #}
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label>Address</label>
@@ -136,48 +132,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/intlTelInput.min.js"></script>
-<script>
-(function () {
-    'use strict';
-
-    var SLOTS = [
-        ['id_phone_1_display', 'id_phone_1_hidden'],
-        ['id_phone_2_display', 'id_phone_2_hidden'],
-        ['id_phone_3_display', 'id_phone_3_hidden'],
-    ];
-
-    document.addEventListener('DOMContentLoaded', function () {
-        var instances = SLOTS.map(function (pair) {
-            var display = document.getElementById(pair[0]);
-            var hidden  = document.getElementById(pair[1]);
-
-            var iti = window.intlTelInput(display, {
-                initialCountry:     'tt',
-                separateDialCode:   true,
-                preferredCountries: ['tt', 'us', 'gb', 'ca'],
-                utilsScript: 'https://cdn.jsdelivr.net/npm/intl-tel-input@18.5.3/build/js/utils.js',
-            });
-
-            var stored = (hidden.value || '').trim();
-            if (stored) {
-                var withPlus = stored.startsWith('+') ? stored : '+' + stored;
-                iti.promise.then(function () {
-                    iti.setNumber(withPlus);
-                });
-            }
-
-            return { iti: iti, display: display, hidden: hidden };
-        });
-
-        var form = document.getElementById('supplierForm');
-        form.addEventListener('submit', function () {
-            instances.forEach(function (obj) {
-                var e164 = obj.iti.getNumber();
-                obj.hidden.value = e164 ? e164.replace(/\D/g, '') : '';
-            });
-        });
-    });
-}());
-</script>
+{% include 'sales/partials/phone_confirm.html' with form_id='supplierForm' %}
 {% endblock %}

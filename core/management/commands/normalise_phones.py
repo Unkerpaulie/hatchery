@@ -44,6 +44,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         apply   = options["apply"]
         dry_run = not apply
+        self.stdout.write(self.style.INFO(f"Customers: {Customer.objects.count()}; Suppliers: {Supplier.objects.count()}"))
 
         if dry_run:
             self.stdout.write(self.style.WARNING(

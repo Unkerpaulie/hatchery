@@ -52,19 +52,12 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
 
         # ── KPI: eggs currently incubating ───────────────────────────────
-        # Fetch total egg quantity and total already hatched for all
-        # INCUBATING batches separately (avoids aggregating over compound
-        # annotations, which SQLite can handle inconsistently).
-        incubating_agg = (
+        # eggs_remaining is now annotated correctly: initial_quantity
+        # minus hatched_count minus egg_adjusted_count. Sum it directly.
+        ctx["eggs_incubating"] = (
             Batch.objects.with_inventory()
             .filter(status=Batch.Status.INCUBATING)
-            .aggregate(
-                total_qty=Coalesce(Sum("initial_quantity"), Value(0)),
-                total_hatched=Coalesce(Sum("hatched_count"), Value(0)),
-            )
-        )
-        ctx["eggs_incubating"] = (
-            incubating_agg["total_qty"] - incubating_agg["total_hatched"]
+            .aggregate(s=Coalesce(Sum("eggs_remaining"), Value(0)))["s"]
         )
 
         # ── KPI: chicks available ────────────────────────────────────────

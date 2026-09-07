@@ -62,6 +62,15 @@ class BatchQuerySet(models.QuerySet):
         # FINALIZED and CLOSED sales both commit chick inventory.
         committed_filter = {"sale__status__in": ["finalized", "closed"]}
 
+        # Adjustments are split by target so incubating batches can account
+        # for losses correctly:
+        #   egg_adjusted_count  — egg losses; reduce eggs_remaining
+        #   chick_adjusted_count — chick/bird losses (all other targets); reduce birds_count
+        # For non-INCUBATING batches adjustment_target is blank, so all
+        # adjustments land in chick_adjusted_count (the default bucket).
+        egg_adj_filter   = {"adjustment_target": "egg"}
+        chick_adj_filter = {"adjustment_target__in": ["chick", ""]}  # blank = non-incubating
+
         revenue_sq = (
             SaleLine.objects.filter(batch=OuterRef("pk"), sale__status__in=["finalized", "closed"])
             .values("batch")
@@ -93,7 +102,8 @@ class BatchQuerySet(models.QuerySet):
             self.annotate(
                 hatched_count=Coalesce(Subquery(_sum_sq(Hatch), output_field=IntegerField()), zero_int),
                 sold_count=Coalesce(Subquery(_sum_sq(SaleLine, extra_filter=committed_filter), output_field=IntegerField()), zero_int),
-                adjusted_count=Coalesce(Subquery(_sum_sq(Adjustment), output_field=IntegerField()), zero_int),
+                egg_adjusted_count=Coalesce(Subquery(_sum_sq(Adjustment, extra_filter=egg_adj_filter), output_field=IntegerField()), zero_int),
+                chick_adjusted_count=Coalesce(Subquery(_sum_sq(Adjustment, extra_filter=chick_adj_filter), output_field=IntegerField()), zero_int),
                 meat_sold_count=Coalesce(Subquery(meat_sold_sq, output_field=IntegerField()), zero_int),
                 revenue=Coalesce(
                     Subquery(revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
@@ -116,18 +126,22 @@ class BatchQuerySet(models.QuerySet):
             )
             .annotate(
                 # 3rd pass: eggs_remaining and birds_count.
-                # eggs_remaining: unhatched eggs during INCUBATING; zero otherwise.
+                # eggs_remaining: unhatched, unadjusted eggs during INCUBATING.
+                # Egg-targeted adjustments reduce this count directly.
                 eggs_remaining=Case(
-                    When(status="incubating", then=F("initial_quantity") - F("hatched_count")),
+                    When(
+                        status="incubating",
+                        then=F("initial_quantity") - F("hatched_count") - F("egg_adjusted_count"),
+                    ),
                     default=zero_int,
                     output_field=IntegerField(),
                 ),
-                # birds_count: total living inventory in the batch at any moment.
-                # Uniform formula across all lifecycle phases:
-                #   initial_quantity − all_adjustments − chick_sales − meat_sales
-                # For egg batches the failed-egg Adjustment auto-created by mark_hatched()
-                # is what makes this formula correct post-HATCHED (see Batch.mark_hatched).
-                birds_count=F("initial_quantity") - F("adjusted_count") - F("sold_count") - F("meat_sold_count"),
+                # birds_count: total living inventory (chicks/birds, not unhatched eggs).
+                # Deducts both chick adjustments AND egg adjustments, since dead eggs
+                # are also gone from total living inventory.
+                # eggs_remaining (computed next pass) then separates the unhatched
+                # portion from the hatched chick portion.
+                birds_count=F("initial_quantity") - F("egg_adjusted_count") - F("chick_adjusted_count") - F("sold_count") - F("meat_sold_count"),
             )
             .annotate(
                 # 4th pass: sale-availability and adjustment ceiling.
@@ -153,10 +167,9 @@ class BatchQuerySet(models.QuerySet):
                     default=zero_int,
                     output_field=IntegerField(),
                 ),
-                # adjustment_ceiling: losses can occur at any lifecycle phase.
-                #   Always equals birds_count — the full living count with no
-                #   deduction for unhatched eggs, since an incubating egg that
-                #   dies is a real loss and must be recordable as an adjustment.
+                # adjustment_ceiling: full living count = birds_count.
+                # birds_count already deducts all egg and chick adjustments,
+                # so this equals the total remaining adjustable inventory.
                 adjustment_ceiling=F("birds_count"),
             )
         )
@@ -366,8 +379,21 @@ class Batch(AuditedModel):
         return self.sale_lines.filter(sale__status__in=["finalized", "closed"]).aggregate(s=Sum("quantity"))["s"] or 0
 
     @cached_property
+    def egg_adjusted_count(self) -> int:
+        """Adjustments targeting eggs (INCUBATING phase losses)."""
+        return self.adjustments.filter(adjustment_target="egg").aggregate(s=Sum("quantity"))["s"] or 0
+
+    @cached_property
+    def chick_adjusted_count(self) -> int:
+        """Adjustments targeting chicks/birds, or blank (non-incubating phases)."""
+        return self.adjustments.filter(
+            adjustment_target__in=["chick", ""]
+        ).aggregate(s=Sum("quantity"))["s"] or 0
+
+    @cached_property
     def adjusted_count(self) -> int:
-        return self.adjustments.aggregate(s=Sum("quantity"))["s"] or 0
+        """Total of all adjustments (egg + chick). Used for display."""
+        return self.egg_adjusted_count + self.chick_adjusted_count
 
     @cached_property
     def chick_pool(self) -> int:
@@ -382,10 +408,10 @@ class Batch(AuditedModel):
 
     @cached_property
     def eggs_remaining(self) -> int:
-        """Eggs still unhatched during INCUBATING phase. Zero for all other statuses."""
+        """Unhatched, unadjusted eggs during INCUBATING. Zero for all other statuses."""
         if self.status != self.Status.INCUBATING:
             return 0
-        return self.initial_quantity - self.hatched_count
+        return self.initial_quantity - self.hatched_count - self.egg_adjusted_count
 
     @cached_property
     def meat_sold_count(self) -> int:
@@ -399,16 +425,13 @@ class Batch(AuditedModel):
 
     @cached_property
     def birds_count(self) -> int:
-        """Total living inventory in the batch at any moment (mirrors with_inventory annotation).
+        """Total living inventory (eggs + chicks combined, minus all losses and sales).
 
-        Uniform formula for every lifecycle phase:
-            initial_quantity − all_adjustments − chick_sales − meat_sales
-
-        For egg batches the failed-egg Adjustment auto-created by mark_hatched() is
-        what makes this formula correct post-HATCHED; without it the result would
-        be initial_quantity instead of hatched_count as the effective base.
+        Deducts both egg and chick adjustments since both represent real losses.
+        eggs_remaining then separates the unhatched portion so chicks_available
+        can be derived correctly.
         """
-        return self.initial_quantity - self.adjusted_count - self.sold_count - self.meat_sold_count
+        return self.initial_quantity - self.egg_adjusted_count - self.chick_adjusted_count - self.sold_count - self.meat_sold_count
 
     @cached_property
     def chicks_available(self) -> int:
@@ -437,12 +460,7 @@ class Batch(AuditedModel):
 
     @cached_property
     def adjustment_ceiling(self) -> int:
-        """Ceiling for adjustments — losses can occur at any lifecycle phase.
-
-        Always equals birds_count: the full living count with no deduction
-        for unhatched eggs. An incubating egg that dies is a real loss
-        and must be recordable as an adjustment.
-        """
+        """Total adjustable quantity. birds_count already deducts all losses."""
         return self.birds_count
 
     @cached_property

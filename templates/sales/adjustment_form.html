@@ -12,10 +12,10 @@
             {% csrf_token %}
 
             {# ── Row 1: Batch / [Target] / Date ──────────────────────────── #}
-            {# On desktop the target dropdown is hidden and takes no space until
+            {% comment %} On desktop the target dropdown is hidden and takes no space until
                an INCUBATING batch is selected, at which point the row reflows:
                batch → col-md-6, target → col-md-3, date → col-md-3.
-               On mobile all three stack full-width. #}
+               On mobile all three stack full-width. {% endcomment %}
             <div class="form-row" id="batchDateRow">
 
                 <div class="form-group col-md-6" id="batchCol">

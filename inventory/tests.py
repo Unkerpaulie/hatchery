@@ -1,12 +1,13 @@
 """Tests for inventory models: Batch lifecycle, age tracking, inventory math."""
 
 import datetime
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from .models import Batch, Hatch, Supplier
+from .models import Batch, Expense, Hatch, Supplier
 
 
 def make_batch(**kwargs):
@@ -177,3 +178,19 @@ class AgeTrackingTests(TestCase):
         # day_1_date = today - 3 - 10 = today - 13; current_age = 13 days = 1w 6d
         self.assertEqual(batch.current_age_days, 13)
         self.assertEqual(batch.current_age_display, "1w 6d")
+
+
+class BatchProfitTests(TestCase):
+
+    def test_profit_includes_expenses_attributed_to_the_batch(self):
+        batch = make_chick_batch(total_cost="300.00")
+        Expense.objects.create(
+            batch=batch,
+            amount="25.50",
+            category=Expense.Category.FEED,
+            description="Starter feed",
+        )
+        batch.refresh_from_db()
+
+        self.assertEqual(batch.expense_total, Decimal("25.50"))
+        self.assertEqual(batch.profit, Decimal("-325.50"))

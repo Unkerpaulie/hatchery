@@ -554,9 +554,20 @@ class Batch(AuditedModel):
             return 0.0
         return self.hatched_count / self.initial_quantity
 
+    @cached_property
+    def expense_total(self) -> Decimal:
+        """Operating expenses explicitly attributed to this batch.
+
+        General expenses intentionally remain outside this total: they belong
+        to the business-wide cost picture and cannot be allocated to a batch
+        without an explicit allocation rule.
+        """
+        return self.expenses.aggregate(s=Sum("amount"))["s"] or Decimal("0")
+
     @property
     def profit(self) -> Decimal:
-        return self.revenue - self.total_cost
+        """Cash received less purchase cost and batch-attributed expenses."""
+        return self.revenue - self.total_cost - self.expense_total
 
 
 class Hatch(AuditedModel):

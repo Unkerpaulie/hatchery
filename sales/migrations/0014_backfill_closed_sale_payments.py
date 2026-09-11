@@ -13,12 +13,15 @@ def backfill_closed_sale_payments(apps, schema_editor):
     """
     Sale = apps.get_model("sales", "Sale")
     SaleLine = apps.get_model("sales", "SaleLine")
+    db_alias = schema_editor.connection.alias
 
-    for sale in Sale.objects.filter(status="closed", payment_received__isnull=True).iterator():
-        total = SaleLine.objects.filter(sale_id=sale.pk).aggregate(
+    for sale in Sale.objects.using(db_alias).filter(
+        status="closed", payment_received__isnull=True
+    ).iterator():
+        total = SaleLine.objects.using(db_alias).filter(sale_id=sale.pk).aggregate(
             total=Sum(F("quantity") * F("unit_price"))
         )["total"]
-        Sale.objects.filter(pk=sale.pk).update(payment_received=total or 0)
+        Sale.objects.using(db_alias).filter(pk=sale.pk).update(payment_received=total or 0)
 
 
 class Migration(migrations.Migration):

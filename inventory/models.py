@@ -11,7 +11,7 @@ from decimal import Decimal
 from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, Count, DecimalField, F, IntegerField, OuterRef, Subquery, Sum, Value, When
+from django.db.models import Case, Count, DecimalField, ExpressionWrapper, F, IntegerField, OuterRef, Subquery, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.functional import cached_property
@@ -71,10 +71,31 @@ class BatchQuerySet(models.QuerySet):
         egg_adj_filter   = {"adjustment_target": "egg"}
         chick_adj_filter = {"adjustment_target__in": ["chick", ""]}  # blank = non-incubating
 
-        revenue_sq = (
-            SaleLine.objects.filter(batch=OuterRef("pk"), sale__status__in=["finalized", "closed"])
-            .values("batch")
+        # Cash received for each line is the sale's collected payment prorated
+        # by this line's share of the invoice.  This keeps multi-batch sales
+        # attributable without counting an invoice payment more than once.
+        sale_total_sq = (
+            SaleLine.objects.filter(sale_id=OuterRef("sale_id"))
+            .values("sale")
             .annotate(s=Sum(F("quantity") * F("unit_price")))
+            .values("s")
+        )
+        chick_revenue_sq = (
+            SaleLine.objects.filter(batch=OuterRef("pk"), sale__status__in=["finalized", "closed"])
+            .annotate(
+                sale_total=Subquery(
+                    sale_total_sq,
+                    output_field=DecimalField(max_digits=12, decimal_places=2),
+                )
+            )
+            .annotate(
+                cash_received=ExpressionWrapper(
+                    F("quantity") * F("unit_price") * F("sale__payment_received") / F("sale_total"),
+                    output_field=DecimalField(max_digits=12, decimal_places=2),
+                )
+            )
+            .values("batch")
+            .annotate(s=Sum("cash_received"))
             .values("s")
         )
 
@@ -106,7 +127,7 @@ class BatchQuerySet(models.QuerySet):
                 chick_adjusted_count=Coalesce(Subquery(_sum_sq(Adjustment, extra_filter=chick_adj_filter), output_field=IntegerField()), zero_int),
                 meat_sold_count=Coalesce(Subquery(meat_sold_sq, output_field=IntegerField()), zero_int),
                 revenue=Coalesce(
-                    Subquery(revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
+                    Subquery(chick_revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
                     zero_money,
                 ) + Coalesce(
                     Subquery(meat_revenue_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
@@ -314,8 +335,10 @@ class Batch(AuditedModel):
         if self.status != self.Status.INCUBATING:
             raise ValidationError("Only batches in 'incubating' status can be marked as hatched.")
 
-        # Capture before the status change so failed_count is still computable.
-        failed = self.initial_quantity - self.hatched_count
+        # Only the eggs still physically present and unhatched become failed
+        # hatches. Earlier egg adjustments have already removed broken/lost
+        # eggs from this balance and must not be counted again.
+        failed = self.eggs_remaining
 
         self.status = self.Status.HATCHED
         self.day_1_date = timezone.localdate()
@@ -329,6 +352,7 @@ class Batch(AuditedModel):
                 batch=self,
                 date=timezone.localdate(),
                 quantity=failed,
+                adjustment_target=Adjustment.AdjustmentTarget.EGG,
                 reason="Failed to hatch",
                 created_by=updated_by,
                 updated_by=updated_by,
@@ -600,7 +624,8 @@ class Hatch(AuditedModel):
             if self.pk:
                 existing_qs = existing_qs.exclude(pk=self.pk)
             already_hatched = existing_qs.aggregate(s=Sum("quantity"))["s"] or 0
-            eggs_remaining = self.batch.initial_quantity - already_hatched
+            egg_losses = self.batch.egg_adjusted_count
+            eggs_remaining = self.batch.initial_quantity - already_hatched - egg_losses
             if self.quantity > eggs_remaining:
                 raise ValidationError({
                     "quantity": (

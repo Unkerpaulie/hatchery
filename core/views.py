@@ -40,7 +40,7 @@ from django.utils import timezone
 from django.views.generic import TemplateView
 
 from inventory.models import Batch, Expense, Hatch
-from sales.models import Adjustment, MeatSaleLine, SaleLine
+from sales.models import Adjustment, MeatSaleLine, Sale, SaleLine
 
 
 class DashboardView(LoginRequiredMixin, TemplateView):
@@ -85,11 +85,13 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         expense_costs = Expense.objects.aggregate(s=Coalesce(Sum("amount"), zero))["s"]
         ctx["total_costs"] = batch_costs + expense_costs
 
-        # ── KPI: revenue ─────────────────────────────────────────────────
-        # Chick sales: only CLOSED sale lines count as realised revenue.
-        chick_revenue = SaleLine.objects.filter(sale__status="closed").aggregate(
-            s=Coalesce(Sum(F("quantity") * F("unit_price")), zero)
-        )["s"]
+        # ── KPI: cash received ───────────────────────────────────────────
+        # FINALIZED sales have delivered chicks but may retain a balance;
+        # their payment_received is still cash already in hand.  Summing Sale
+        # rows (not lines) avoids counting a multi-line invoice more than once.
+        chick_revenue = Sale.objects.filter(
+            status__in=[Sale.Status.FINALIZED, Sale.Status.CLOSED]
+        ).aggregate(s=Coalesce(Sum("payment_received"), zero))["s"]
         # Meat sales: SUM(weight_lb × price_per_lb) across all lines.
         # Django joins through the FK so this is a single query.
         meat_revenue = MeatSaleLine.objects.aggregate(

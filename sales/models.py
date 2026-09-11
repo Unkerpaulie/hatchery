@@ -98,7 +98,9 @@ class Sale(AuditedModel):
         Never stored — always derived from total_revenue and payment_received.
         """
         if self.payment_received is None:
-            return Decimal("0")
+            # Pending orders do not yet carry payment data.  A finalized sale
+            # with a missing payment is different: its full value is still due.
+            return self.total_revenue if self.status == self.Status.FINALIZED else Decimal("0")
         return max(self.total_revenue - self.payment_received, Decimal("0"))
 
 

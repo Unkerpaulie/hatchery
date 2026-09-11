@@ -132,7 +132,7 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
 
         # Hatch form and egg-specific stats only apply to egg batches in INCUBATING.
         if batch.purchased_as == Batch.PurchasedAs.EGGS and batch.status == Batch.Status.INCUBATING:
-            eggs_remaining = batch.initial_quantity - batch.hatched_count
+            eggs_remaining = batch.eggs_remaining
             hatch_form = HatchForm(batch=batch)
             hatch_form.fields["quantity"].widget.attrs["max"] = eggs_remaining
             ctx["hatch_form"] = hatch_form

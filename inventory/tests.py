@@ -7,6 +7,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
+from sales.models import Adjustment
+
 from .models import Batch, Expense, Hatch, Supplier
 
 
@@ -107,6 +109,74 @@ class EggBatchLifecycleTests(TestCase):
         Hatch.objects.create(batch=batch, date=datetime.date(2024, 1, 21), quantity=90)
         batch.mark_hatched()
         self.assertAlmostEqual(batch.success_rate, 0.9)
+
+    def test_egg_and_chick_losses_stay_separate_during_incubation(self):
+        batch = make_batch(initial_quantity=1000)
+        batch.begin_incubation()
+        Adjustment.objects.create(
+            batch=batch,
+            quantity=150,
+            adjustment_target=Adjustment.AdjustmentTarget.EGG,
+            reason="Broken eggs",
+        )
+        batch = Batch.objects.with_inventory().get(pk=batch.pk)
+        self.assertEqual(batch.eggs_remaining, 850)
+        self.assertEqual(batch.chicks_available, 0)
+
+        Hatch.objects.create(batch=batch, quantity=600)
+        batch = Batch.objects.with_inventory().get(pk=batch.pk)
+        self.assertEqual(batch.eggs_remaining, 250)
+        self.assertEqual(batch.chicks_available, 600)
+
+        Hatch.objects.create(batch=batch, quantity=100)
+        Adjustment.objects.create(
+            batch=batch,
+            quantity=25,
+            adjustment_target=Adjustment.AdjustmentTarget.EGG,
+            reason="Broken eggs",
+        )
+        Adjustment.objects.create(
+            batch=batch,
+            quantity=25,
+            adjustment_target=Adjustment.AdjustmentTarget.CHICK,
+            reason="Chick mortality",
+        )
+        batch = Batch.objects.with_inventory().get(pk=batch.pk)
+        self.assertEqual(batch.eggs_remaining, 125)
+        self.assertEqual(batch.chicks_available, 675)
+
+    def test_complete_incubation_only_records_unhatched_eggs_as_failed(self):
+        batch = make_batch(initial_quantity=100)
+        batch.begin_incubation()
+        Hatch.objects.create(batch=batch, quantity=80)
+        Adjustment.objects.create(
+            batch=batch,
+            quantity=10,
+            adjustment_target=Adjustment.AdjustmentTarget.EGG,
+            reason="Broken eggs",
+        )
+
+        batch.mark_hatched()
+
+        failure = batch.adjustments.get(reason="Failed to hatch")
+        self.assertEqual(failure.quantity, 10)
+        self.assertEqual(failure.adjustment_target, Adjustment.AdjustmentTarget.EGG)
+        batch = Batch.objects.with_inventory().get(pk=batch.pk)
+        self.assertEqual(batch.chicks_available, 80)
+
+    def test_hatch_validation_respects_prior_egg_losses(self):
+        batch = make_batch(initial_quantity=100)
+        batch.begin_incubation()
+        Adjustment.objects.create(
+            batch=batch,
+            quantity=10,
+            adjustment_target=Adjustment.AdjustmentTarget.EGG,
+            reason="Broken eggs",
+        )
+        hatch = Hatch(batch=batch, quantity=91)
+
+        with self.assertRaises(ValidationError):
+            hatch.full_clean()
 
 
 # ---------------------------------------------------------------------------

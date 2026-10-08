@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Settings · Hatchery{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Settings</h1>
+</div>
+
+{# ── Section: expense categories ─────────────────────────────────────────── #}
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Manage Expense Categories</h6>
+        <button type="button" class="btn btn-sm btn-primary shadow-sm"
+                data-toggle="modal" data-target="#categoryModal"
+                data-title="Add Expense Category"
+                data-url="{% url 'inventory:expense_category_create' %}"
+                data-name="">
+            <i class="fas fa-plus fa-sm text-white-50"></i> Add
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered mb-0" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th class="text-center" style="width:110px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for category in categories %}
+                    <tr>
+                        <td>{{ category.name }}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-info"
+                                    data-toggle="modal" data-target="#categoryModal"
+                                    data-title="Edit Expense Category"
+                                    data-url="{% url 'inventory:expense_category_update' category.pk %}"
+                                    data-name="{{ category.name }}"
+                                    title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger"
+                                    data-toggle="modal" data-target="#deleteCategoryModal"
+                                    data-url="{% url 'inventory:expense_category_delete' category.pk %}"
+                                    data-name="{{ category.name }}"
+                                    data-count="{{ category.expense_count }}"
+                                    title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="2" class="text-center text-muted">No expense categories yet. Use Add to create one.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# ── Add / edit modal (one modal, re-pointed by the buttons above) ───────── #}
+<div class="modal fade" id="categoryModal" tabindex="-1" role="dialog" aria-labelledby="categoryModalTitle" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="categoryForm" method="post" novalidate autocomplete="off">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="categoryModalTitle">Expense Category</h5>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group mb-0">
+                        <label for="{{ category_form.name.id_for_label }}">
+                            {{ category_form.name.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ category_form.name }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-save mr-1"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# ── Delete confirmation modal ───────────────────────────────────────────── #}
+<div class="modal fade" id="deleteCategoryModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Expense Category</h5>
+                <button class="close" type="button" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <p>Delete the category <strong id="deleteCategoryName"></strong>? This cannot be undone.</p>
+                <p class="mb-0" id="deleteCategoryImpact"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                <form id="deleteCategoryForm" method="post">
+                    {% csrf_token %}
+                    <button class="btn btn-danger" type="submit">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $('#categoryModal').on('show.bs.modal', function (e) {
+        var btn = $(e.relatedTarget);
+        $(this).find('#categoryModalTitle').text(btn.data('title'));
+        $(this).find('#categoryForm').attr('action', btn.data('url'));
+        // .attr() not .data(): jQuery's .data() coerces values like "true" or "2024".
+        $(this).find('#{{ category_form.name.id_for_label }}').val(btn.attr('data-name'));
+    }).on('shown.bs.modal', function () {
+        $(this).find('#{{ category_form.name.id_for_label }}').trigger('focus').select();
+    });
+
+    $('#deleteCategoryModal').on('show.bs.modal', function (e) {
+        var btn = $(e.relatedTarget);
+        var count = parseInt(btn.data('count'), 10) || 0;
+        $(this).find('#deleteCategoryForm').attr('action', btn.data('url'));
+        $(this).find('#deleteCategoryName').text(btn.attr('data-name'));
+        var impact = count === 0
+            ? 'No expense records use this category.'
+            : count + (count === 1 ? ' expense record uses' : ' expense records use') +
+              ' this category and will become uncategorized. You can assign them a new category later by editing each expense.';
+        $(this).find('#deleteCategoryImpact').text(impact);
+    });
+</script>
+{% endblock %}

@@ -35,11 +35,12 @@ class AuditMixin:
         form.instance.updated_by = self.request.user
         return super().form_valid(form)
 from django.db.models import Count, DecimalField, F, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Lower
 from django.utils import timezone
 from django.views.generic import TemplateView
 
-from inventory.models import Batch, Expense, Hatch
+from inventory.forms import ExpenseCategoryForm
+from inventory.models import Batch, Expense, ExpenseCategory, Hatch
 from sales.models import Adjustment, MeatSaleLine, Sale, SaleLine
 
 
@@ -140,4 +141,30 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             "meat_sold":  [meat_sale_map.get(d, 0)  for d in labels],
         })
 
+        return ctx
+
+
+class SettingsView(LoginRequiredMixin, TemplateView):
+    """Settings hub: a single page that gathers backend adjustments.
+
+    There is no Settings model. Each section is just a card on this page that
+    reads from (and posts to) the owning app. Today the only section is
+    "Manage Expense Categories"; its create/update/delete endpoints live in
+    the inventory app and redirect back here.
+    """
+
+    template_name = "core/settings.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        # expense_count feeds the delete-confirmation modal. The ordering is
+        # explicit on purpose: Django ignores Meta.ordering on queries that
+        # aggregate (annotate(Count) adds a GROUP BY), so relying on the
+        # model default here silently returns an arbitrary order on PostgreSQL.
+        ctx["categories"] = (
+            ExpenseCategory.objects
+            .annotate(expense_count=Count("expenses"))
+            .order_by(Lower("name"))
+        )
+        ctx["category_form"] = ExpenseCategoryForm()
         return ctx

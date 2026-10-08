@@ -17,8 +17,8 @@ from django.views.generic import (
 from core.views import AuditMixin
 from sales.models import Adjustment, SaleLine
 
-from .forms import BatchForm, ExpenseForm, HatchForm, SupplierForm
-from .models import Batch, Expense, Hatch, Supplier
+from .forms import BatchForm, ExpenseCategoryForm, ExpenseForm, HatchForm, SupplierForm
+from .models import Batch, Expense, ExpenseCategory, Hatch, Supplier
 
 # Statuses where chick inventory is tracked and sale lines are shown.
 _CHICK_SALE_STATUSES = (Batch.Status.HATCHED, Batch.Status.RAISING, Batch.Status.GROWN)
@@ -149,7 +149,9 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
             )
 
         # Expenses attributed to this batch.
-        ctx["expenses"] = batch.expenses.all().order_by("-date", "-id")
+        ctx["expenses"] = (
+            batch.expenses.select_related("category", "supplier").order_by("-date", "-id")
+        )
         return ctx
 
 
@@ -324,7 +326,7 @@ class ExpenseListView(LoginRequiredMixin, ListView):
     context_object_name = "expenses"
 
     def get_queryset(self):
-        return Expense.objects.select_related("batch", "supplier").order_by("-date", "-id")
+        return Expense.objects.select_related("batch", "supplier", "category").order_by("-date", "-id")
 
 
 class ExpenseCreateView(AuditMixin, LoginRequiredMixin, CreateView):
@@ -359,3 +361,73 @@ class ExpenseDeleteView(LoginRequiredMixin, DeleteView):
     def form_valid(self, form):
         messages.success(self.request, "Expense deleted.")
         return super().form_valid(form)
+
+
+# ---------------------------------------------------------------------------
+# Expense category views
+#
+# These are POST-only endpoints. The UI for them (list plus add/edit/delete
+# modals) is the Settings page in the core app, which every view here
+# redirects back to; results are reported as page messages.
+# ---------------------------------------------------------------------------
+
+def _redirect_with_form_errors(request, form):
+    """Report form errors as page messages and return to the Settings page.
+
+    ``extra_tags="danger"`` makes base.html render a red Bootstrap alert
+    (it builds the CSS class from the message tags).
+    """
+    for errors in form.errors.values():
+        for error in errors:
+            messages.error(request, f"Category not saved: {error}", extra_tags="danger")
+    return redirect("core:settings")
+
+
+class ExpenseCategoryCreateView(AuditMixin, LoginRequiredMixin, CreateView):
+    model = ExpenseCategory
+    form_class = ExpenseCategoryForm
+    http_method_names = ["post"]
+    success_url = reverse_lazy("core:settings")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Category \u201c{form.cleaned_data['name']}\u201d added.")
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        return _redirect_with_form_errors(self.request, form)
+
+
+class ExpenseCategoryUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
+    model = ExpenseCategory
+    form_class = ExpenseCategoryForm
+    http_method_names = ["post"]
+    success_url = reverse_lazy("core:settings")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Category updated: \u201c{form.cleaned_data['name']}\u201d.")
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        return _redirect_with_form_errors(self.request, form)
+
+
+class ExpenseCategoryDeleteView(LoginRequiredMixin, View):
+    """POST-only delete; the confirmation is a modal on the Settings page.
+
+    ``Expense.category`` uses SET_NULL, so expenses survive and simply become
+    uncategorized. The count is read before deleting so the message can say
+    how many were affected.
+    """
+
+    def post(self, request, pk):
+        category = get_object_or_404(ExpenseCategory, pk=pk)
+        name = category.name
+        affected = category.expenses.count()
+        category.delete()
+
+        message = f"Category \u201c{name}\u201d deleted."
+        if affected:
+            noun, verb = ("expense", "is") if affected == 1 else ("expenses", "are")
+            message += f" {affected} {noun} {verb} now uncategorized."
+        messages.success(request, message)
+        return redirect("core:settings")

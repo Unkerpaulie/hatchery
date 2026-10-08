@@ -372,7 +372,7 @@
                 {% for expense in expenses %}
                     <tr>
                         <td>{{ expense.date }}</td>
-                        <td>{{ expense.get_category_display }}</td>
+                        <td>{% if expense.category %}{{ expense.category.name }}{% else %}<span class="text-muted">Uncategorized</span>{% endif %}</td>
                         <td>{{ expense.description }}</td>
                         <td>{{ expense.supplier|default:"—" }}</td>
                         <td class="text-right">${{ expense.amount|currency_comma }}</td>

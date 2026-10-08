@@ -14,7 +14,7 @@
             <dt class="col-sm-3">Date</dt>
             <dd class="col-sm-9">{{ expense.date }}</dd>
             <dt class="col-sm-3">Category</dt>
-            <dd class="col-sm-9">{{ expense.get_category_display }}</dd>
+            <dd class="col-sm-9">{{ expense.category.name|default:"Uncategorized" }}</dd>
             <dt class="col-sm-3">Description</dt>
             <dd class="col-sm-9">{{ expense.description }}</dd>
             <dt class="col-sm-3">Amount</dt>

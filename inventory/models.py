@@ -12,7 +12,7 @@ from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, Count, DecimalField, ExpressionWrapper, F, IntegerField, OuterRef, Subquery, Sum, Value, When
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Lower
 from django.utils import timezone
 from django.utils.functional import cached_property
 
@@ -635,6 +635,36 @@ class Hatch(AuditedModel):
                 })
 
 
+class ExpenseCategory(AuditedModel):
+    """A user-managed label for classifying operating expenses.
+
+    Categories are data, not code: the client adds, renames and deletes them
+    from the Settings page, so no code may depend on a specific category name.
+
+    Names are unique ignoring case ("Salaries" blocks "salaries"), enforced by
+    a database constraint and surfaced as a friendly error by the form.
+    Ordering is always alphabetical, case-insensitive. ``Lower()`` makes the
+    order identical on SQLite (dev) and PostgreSQL (prod), whose default
+    collations otherwise sort mixed-case names differently.
+    """
+
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = [Lower("name")]
+        verbose_name_plural = "expense categories"
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"),
+                name="uniq_expense_category_name_ci",
+                violation_error_message="A category with this name already exists.",
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
 class Expense(AuditedModel):
     """An operating expense, optionally attributed to a specific batch and/or supplier.
 
@@ -642,22 +672,6 @@ class Expense(AuditedModel):
     covers all other running costs (feed, medicine, labour, etc.) and supports
     per-batch profitability tracking when a batch is specified.
     """
-
-    class Category(models.TextChoices):
-        CLEANING   = "cleaning",   "Cleaning"
-        CUSTOMS_EXCISE = "customs_excise", "Customs & Excise"
-        ELECTRICITY = "electricity", "Electricity"
-        EQUIPMENT   = "equipment",   "Equipment"
-        FEED        = "feed",        "Feed"
-        LABOR       = "labor",       "Labor"
-        MAINTENANCE  = "maintenance",  "Maintenance"
-        MEDICINE    = "medicine",    "Medicine"
-        PACKAGING   = "packaging",   "Packaging"
-        PHONE       = "phone",       "Phone"
-        SERVICE_CHARGES = "service_charges", "Service Charges"
-        SUPPLIES    = "supplies",    "Supplies"
-        TRANSPORT   = "transport",   "Transport"
-        OTHER       = "other",       "Other"
 
     batch    = models.ForeignKey(
         "Batch",
@@ -675,7 +689,16 @@ class Expense(AuditedModel):
     )
     date        = models.DateField(default=timezone.localdate)
     amount      = models.DecimalField(max_digits=10, decimal_places=2)
-    category    = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)
+    # null=True (so SET_NULL can orphan expenses when a category is deleted)
+    # but blank=False (so forms and full_clean() still require a category on
+    # every save). Uncategorized rows are therefore only ever the result of a
+    # category deletion, and editing one prompts for a new category.
+    category    = models.ForeignKey(
+        ExpenseCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="expenses",
+    )
     description = models.CharField(max_length=200)
 
     created_at  = models.DateTimeField(auto_now_add=True)
@@ -685,7 +708,8 @@ class Expense(AuditedModel):
         ordering = ["-date", "-id"]
 
     def __str__(self):
-        return f"{self.get_category_display()} — ${self.amount} ({self.date})"
+        category = self.category.name if self.category_id else "Uncategorized"
+        return f"{category} — ${self.amount} ({self.date})"
 
     def clean(self):
         if self.amount is not None and self.amount <= 0:

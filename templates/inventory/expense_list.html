@@ -33,7 +33,7 @@
                 {% for expense in expenses %}
                     <tr>
                         <td data-order="{{ expense.date|date:'Y-m-d' }}">{{ expense.date }}</td>
-                        <td>{{ expense.get_category_display }}</td>
+                        <td>{% if expense.category %}{{ expense.category.name }}{% else %}<span class="text-muted">Uncategorized</span>{% endif %}</td>
                         <td>
                             {% if expense.batch %}
                                 <a href="{% url 'inventory:batch_detail' expense.batch.pk %}">

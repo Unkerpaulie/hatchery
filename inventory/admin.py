@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Batch, Expense, Hatch, Supplier
+from .models import Batch, Expense, ExpenseCategory, Hatch, Supplier
 
 
 class HatchInline(admin.TabularInline):
@@ -33,6 +33,13 @@ class HatchAdmin(admin.ModelAdmin):
     list_display = ("batch", "date", "quantity")
     list_filter = ("date",)
     readonly_fields = ("created_by", "updated_by", "created_at")
+
+
+@admin.register(ExpenseCategory)
+class ExpenseCategoryAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+    search_fields = ("name",)
+    readonly_fields = ("created_by", "updated_by")
 
 
 @admin.register(Expense)

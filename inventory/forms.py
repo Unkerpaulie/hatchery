@@ -2,7 +2,7 @@
 
 from django import forms
 
-from .models import Batch, Expense, Hatch, Supplier
+from .models import Batch, Expense, ExpenseCategory, Hatch, Supplier
 
 # ---- batch label helper for expense form ------------------------------------
 
@@ -185,3 +185,28 @@ class ExpenseForm(forms.ModelForm):
         if amount is not None and amount <= 0:
             raise forms.ValidationError("Amount must be greater than zero.")
         return amount
+
+
+# ---- Expense category ------------------------------------------------------
+
+class ExpenseCategoryForm(forms.ModelForm):
+    """Add/rename form used by the modal on the Settings page."""
+
+    class Meta:
+        model = ExpenseCategory
+        fields = ["name"]
+        widgets = {"name": forms.TextInput(attrs={**_TEXT, "autocomplete": "off"})}
+        labels = {"name": "Category Name"}
+
+    def clean_name(self):
+        # CharField already strips surrounding whitespace. Names are unique
+        # ignoring case ("salaries" is rejected when "Salaries" exists); the
+        # model's UniqueConstraint is the safety net, this gives the friendly
+        # field-level message. Exclude self so a category can be re-cased.
+        name = self.cleaned_data["name"]
+        clash = ExpenseCategory.objects.filter(name__iexact=name)
+        if self.instance.pk:
+            clash = clash.exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise forms.ValidationError("A category with this name already exists.")
+        return name

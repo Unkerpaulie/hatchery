@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Edit Hatch Record · Hatchery{% endblock %}
+{% block title %}{% if hatch.pk %}Edit{% else %}Add{% endif %} Hatch Record · Hatchery{% endblock %}
 
 {% block content %}
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">Edit Hatch Record</h1>
+    <h1 class="h3 mb-0 text-gray-800">{% if hatch.pk %}Edit{% else %}Add{% endif %} Hatch Record</h1>
     <a href="{% url 'inventory:batch_detail' hatch.batch_id %}"
        class="btn btn-sm btn-secondary shadow-sm">
         <i class="fas fa-arrow-left fa-sm"></i> Back to Batch
@@ -40,7 +40,7 @@
             <hr>
             <div class="d-flex justify-content-end">
                 <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save mr-1"></i> Save Changes
+                <i class="fas fa-save mr-1"></i> {% if hatch.pk %}Save Changes{% else %}Add Record{% endif %}
                 </button>
                 <a href="{% url 'inventory:batch_detail' hatch.batch_id %}"
                    class="btn btn-danger ml-2">Cancel</a>

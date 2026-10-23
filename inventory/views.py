@@ -154,6 +154,29 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
         )
         return ctx
 
+    def post(self, request, *args, **kwargs):
+        """Handle hatch-record creation from the inline form on the detail page.
+
+        Moving the POST here eliminates the /hatches/new/ endpoint, which had
+        no useful GET behaviour — the hatch form is always embedded on this
+        page.  Both success and validation failure redirect back (PRG pattern)
+        so a page refresh never re-submits.
+        """
+        batch = get_object_or_404(Batch, pk=self.kwargs["pk"])
+        form = HatchForm(request.POST, batch=batch)
+        if form.is_valid():
+            hatch = form.save(commit=False)
+            hatch.batch = batch
+            hatch.created_by = request.user
+            hatch.updated_by = request.user
+            hatch.save()
+            messages.success(request, "Hatch record added.")
+        else:
+            for errors in form.errors.values():
+                for error in errors:
+                    messages.error(request, error)
+        return redirect("inventory:batch_detail", pk=batch.pk)
+
 
 class BatchUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
     model = Batch
@@ -256,36 +279,6 @@ class BatchMarkGrownView(LoginRequiredMixin, View):
 # ---------------------------------------------------------------------------
 # Hatch record views
 # ---------------------------------------------------------------------------
-
-class HatchCreateView(AuditMixin, LoginRequiredMixin, CreateView):
-    """Create a hatch record; submitted from the batch detail page."""
-
-    model = Hatch
-    form_class = HatchForm
-
-    def get_batch(self):
-        return get_object_or_404(Batch, pk=self.kwargs["batch_pk"])
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["batch"] = self.get_batch()
-        return kwargs
-
-    def form_valid(self, form):
-        form.instance.batch = self.get_batch()
-        messages.success(self.request, "Hatch record added.")
-        return super().form_valid(form)
-
-    def form_invalid(self, form):
-        # Surface validation errors as a message and redirect back.
-        for field_errors in form.errors.values():
-            for error in field_errors:
-                messages.error(self.request, error)
-        return redirect("inventory:batch_detail", pk=self.kwargs["batch_pk"])
-
-    def get_success_url(self):
-        return reverse("inventory:batch_detail", kwargs={"pk": self.kwargs["batch_pk"]})
-
 
 class HatchUpdateView(AuditMixin, LoginRequiredMixin, UpdateView):
     model = Hatch

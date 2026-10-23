@@ -124,7 +124,11 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save mr-1"></i> Save
                 </button>
+                {% if form.instance.pk %}
+                <a href="{% url 'inventory:supplier_detail' form.instance.pk %}" class="btn btn-danger ml-2">Cancel</a>
+                {% else %}
                 <a href="{% url 'inventory:supplier_list' %}" class="btn btn-danger ml-2">Cancel</a>
+                {% endif %}
             </div>
         </form>
     </div>

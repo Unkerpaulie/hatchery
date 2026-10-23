@@ -30,8 +30,6 @@ urlpatterns = [
     path("batches/<int:pk>/mark-grown/",    views.BatchMarkGrownView.as_view(),       name="batch_mark_grown"),
 
     # ---- Hatch records ----------------------------------------------------
-    path("batches/<int:batch_pk>/hatches/new/",
-                                        views.HatchCreateView.as_view(),           name="hatch_create"),
     path("hatches/<int:pk>/edit/",      views.HatchUpdateView.as_view(),           name="hatch_update"),
     path("hatches/<int:pk>/delete/",    views.HatchDeleteView.as_view(),           name="hatch_delete"),
 
